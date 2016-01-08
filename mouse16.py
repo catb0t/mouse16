@@ -351,8 +351,7 @@ class Stack(object):
 
     def equ(self):
         """( y x -- x=y? )
-        push 1 if x is equal to y: perform equality comparison
-        """
+        push 1 if x is equal to y: perform equality comparison"""
         y, x = self.popn()
         if allof(isnum(x), isnum(y)):
             self.push(bool2int(x == y))
@@ -365,12 +364,27 @@ class Stack(object):
             self.nosuchop("equ", [x, y])
         return
 
+    def neg(self):
+        """( x -- -x )
+        push the inverse sign of x
+        on strings, reverses the string"""
+        x = self.pop()
+        if isnum(x):
+            self.push(signflip(x))
+            return
+        elif isstr(x) or isarr(x):
+            self.push(x[::-1])
+            return
+        else:
+            self.nosuchop("dmd", [x, None])
+        return
+
     # here ends math and begins actual stack operations
     # all of these should be type-agnostic
 
     def dup(self):
         """( y x -- y x x )
-        copy the item on the TOS, then push it"""
+        push a copy of the TOS"""
         self.push(self.copy())
         return
 
