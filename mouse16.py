@@ -2,6 +2,10 @@
 
 import readline, inspect, os, sys, warnings
 
+_fromfile = False
+
+warnings.simplefilter("always")
+
 def main():
     if len(sys.argv) > 1:
         try:
@@ -11,11 +15,14 @@ def main():
             interpret()
             exit(0)
         else:
+            _fromfile= True
             filio = open(sys.argv[1], 'r')
             prog = list(filio.read())
             filio.close()
             mouse.execute(prog)
             exit(0)
+    else:
+        interpret()
 
 def interpret():
     print("mouse16 interpreter (v.01:indev)\n")
@@ -65,6 +72,35 @@ allof = lambda *args: all([i for i in args])
 
 anyof = lambda *args: any([i for i in args])
 
+def coer(obj, typ):
+    if typ == "num":
+        try:
+            return float(obj)
+        except ValueError:
+            try:
+                return int(obj)
+            except ValueError as error:
+                raise BadInternalCallException("junk type coersion", error)
+
+    elif isinstance(obj, typ):
+        return obj
+    try:
+        return typ(obj)
+    except (ValueError, TypeError) as error:
+        raise BadInternalCallException("junk type coersion", error)
+
+class Info(Warning): pass
+
+class TypeWarning(Warning): pass
+
+class ParseWarning(Warning): pass
+
+class RuntimeWarning(Warning): pass
+
+class FatalException(Warning): pass
+
+class BadInternalCallException(Exception): pass
+
 class Stack(object):
 
     def __init__(self):
@@ -80,8 +116,8 @@ class Stack(object):
             4: FatalException
         }
         warnings.warn(logstring, logsdict[errno], stacklevel=stklvl)
-        if errno == 4:
-            exit(errno)
+        if errno == 4 and _fromfile == True:
+            raise SystemExit(4)
         return
 
     def error(self, errkey):
@@ -93,7 +129,6 @@ class Stack(object):
             "recursionerr"    : "call stack exceeded maximum recursion depth"
         }
         self.log(errors[errkey], 4, stklvl=5)
-        raise BadInternalCallException("bug found: key <" + errkey + "> not in list")
         return
 
     def nosuchop(self, operator, operands):
@@ -113,9 +148,8 @@ class Stack(object):
         drop and return an item from the TOS"""
         try:
             return self.stack.pop(idex)
-        except LookupError:
+        except IndexError:
             self.error("stackunderflow")
-        raise BadInternalCallException("bug found: got here")
 
     def popn(self, n=2, idx=-1):
         """( z y x -- )
@@ -144,24 +178,33 @@ class Stack(object):
     def copy(self):
         """( y x -- y x x )
         return an item from the the stack without dropping"""
-        return self.stack[-1]
+        try:
+            return self.stack[-1]
+        except IndexError:
+            self.error("stackunderflow")
+        return
 
-    def copyn(self, n):
+    def copyn(self, n=2):
         """( z y x -- z y x z y x )
-        return n items from the stack without dropping"""
-        return tuple(self.stack[:signflip(n)])
+        return n last items from the stack without dropping"""
+        result = tuple(self.stack[:signflip(n)])
+        if result == ():
+            self.error("stackunderflow")
+        return result
 
     def insert(self, item, idex):
         """( z y x -- z b y x )
         add an item to the stack at the given index"""
         try:
             self.stack.insert(idex, item)
-        except LookupError as err:
-            raise BadInternalCallException("junk list index") from err
+        except LookupError as error:
+            raise BadInternalCallException("junk list index") from error
+        return
 
     def insertn(self, items, lidex):
         """( z y x -- z b y x )
         add a list of items to the stack at the given index"""
+        iter(items)
         for idx, obj in enumerate(items):
             self.insert(lidex, obj)
             lidex += 1
@@ -170,7 +213,10 @@ class Stack(object):
     def remove(self, n):
         """( x -- )
         remove the nth stack item"""
-        del self.stack[n]
+        try:
+            del self.stack[n]
+        except IndexError as error:
+            raise BadInternalCallException("junk list index") from error
         return
 
     def index(self, n):
@@ -180,7 +226,7 @@ class Stack(object):
 
     def clean(self):
         """empty the stack, and return the old stack"""
-        stk = self.stack
+        stk = self.inspect()[:]
         self.stack.clear()
         return stk
 
@@ -193,9 +239,15 @@ class Stack(object):
         y, x = self.popn()
         if allof(isstr(x), isstr(y)):
             self.push(x + y)
-
         elif allof(isstr(x), isnum(y)) or allof(isstr(y), isnum(y)):
-            self.push(str(x) + str(y))
+            try:
+                cr_x, cr_y = coer(x, "num"), coer(y, "num")
+                if allof(isnum(cr_x), isnum(cr_y)):
+                    self.push(cr_x + cr_y)
+                else:
+                    self.push(str(x) + str(y))
+            except BadInternalCallException:
+                self.push(str(x) + str(y))
 
         elif allof(isnum(x), isnum(y)):
             self.push(x + y)
@@ -206,17 +258,26 @@ class Stack(object):
     def sub(self):
         """( z y x -- z x-y )
         subtract x from y: perform binary negation
-        if x and y are strings, remove z occurrences of x from y"""
+        if x and y are strings, remove z occurrences of x from y, or all occurrences if ~z"""
         y, x = self.popn()
         if allof(isstr(x), isstr(y)):
             z = self.pop()
             if isnum(z) and int(z) > 0:
-                for i in range(z):
-                    y = list(y).remove(x)
-            self.push(y)
+                x = x.replace(y, "", z)
+            else:
+                x = x.replace(y, "")
+            self.push(x)
 
-        elif allof(isstr(y), isnum(x)):
-            self.push(y[:signflip(x)])
+        elif allof(isstr(x), isnum(y)) or allof(isstr(y), isnum(y)):
+            try:
+                cr_x, cr_y = coer(x, "num"), coer(y, "num")
+                if allof(isnum(cr_x), isnum(cr_y)):
+                    self.push(cr_x - cr_y)
+                else:
+                    self.push(str(x).replace(y, ""))
+            except BadInternalCallException:
+                self.push(x[:signflip(y)])
+
         elif allof(isnum(x), isnum(y)):
             self.push(x - y)
         else:
@@ -232,7 +293,7 @@ class Stack(object):
         if allof(isstr(x), isstr(y)):
             self.push("".join(i for j in zip(s1, s2) for i in j))
         elif anyof(allof(isnum(x), isstr(y)), allof(isstr(y), isnum(x))) \
-        or allof(isnum(x), isnum(y)):
+        or   allof(isnum(x), isnum(y)):
             self.push(x * y)
         else:
             self.nosuchop("mlt", [x, y])
