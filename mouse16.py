@@ -147,7 +147,7 @@ class Stack(object):
 	def error(self, errkey):
 		"""interface for throwing fatal errors"""
 		errors = {
-			"zerodiv"	     : "attempted to perform integer or float division or modulo by zero",
+			"zerodiv"        : "attempted to perform integer or float division or modulo by zero",
 			"stackunderflow" : "stack underflow: not enough operands on stack for operator",
 			"stackoverflow"  : "stack overflow: the stack size exceeded its allocation",
 			"recursionerr"   : "call stack exceeded maximum recursion depth"
@@ -156,6 +156,7 @@ class Stack(object):
 		return
 
 	def nosuchop(self, operator, operands):
+		"""interface for logging TypeWarnings about operator/operand relations"""
 		operands = [str(type(i)).split("'")[1] for i in operands]
 		message = "undefined operator for operand types:\n\toperator: \
 		{}\n\toperands: {} and {}\n".format(

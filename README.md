@@ -207,6 +207,7 @@ Note that while all of the following are implemented in the Python interpeter, n
  * if the data structure is keyed:
     * `«»5¤` pushes the value with key `5`
 
+```
 ROFL:ROFL:LOL:ROFL:ROFL
            |
   L   /---------
@@ -215,3 +216,4 @@ ROFL:ROFL:LOL:ROFL:ROFL
         \_________\
            |    |
        \-----------/
+```
