@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-import readline, os, sys, warnings
+import readline, os, sys, string, warnings
 
 # affects underflowerror behaviour and shebang interpretation
 _fromfile = False
 
+# allows warnings that occur multiple times in a session to be visible
 warnings.simplefilter("always")
 
 
@@ -34,7 +35,7 @@ def interpret():
 	shellnum = 0
 	while True:
 		try:
-			line = list(input("\t"))
+			line = list(input("\nin:" + str(shellnum) + "  "))
 			shellnum += 1
 			mouse.execute(line, shellnum=shellnum)
 		except KeyboardInterrupt as kbint:
@@ -214,7 +215,6 @@ class Stack(object):
 		"""( z y x -- z y x z y x )
 		return n last items from the stack without dropping"""
 		result = self.__stack__[signflip(n):]
-		print(result)
 		if result == []:
 			self.error("stackunderflow")
 		return result
@@ -235,7 +235,6 @@ class Stack(object):
 		for idx, obj in enumerate(items):
 			self.insert(lidex, obj)
 			lidex += 1
-		return
 
 	def remove(self, n):
 		"""( x -- )
@@ -484,20 +483,20 @@ class Stack(object):
 		"""( z y x -- x z y )
 		roll the stack up by n"""
 		for i in range(n):
-			self.rot()
+			self.roll()
 		return
 
 	def uroll(self):
 		"""( z y x -- x z y )
 		roll the stack down"""
-		self.insert(self.pop())
+		self.insert(self.pop(), 0)
 		return
 
 	def urolln(self, n=2):
 		"""( z y x -- y x z )
 		roll the stack down by n"""
 		for i in range(n):
-			self.urot()
+			self.uroll()
 		return
 
 	def drop(self):
@@ -530,8 +529,31 @@ class Stack(object):
 		self.insert(self.copy(), -2)
 		return
 
+	def prn(self):
+		"""pops the top of the stack and prints"""
+		x = self.pop()
+		if x is None:
+			pass
+		else:
+			length = sys.stdout.write(str(x))
+			del length
+		del x
+
+	def emit(self):
+		x = self.pop()
+		try:
+			x = int(x)
+		except TypeError:
+			if x is None:
+				pass
+			else:
+				self.log(str(x) + " is not a valid UTF-8 codepoint", 1)
+		else:
+			length = sys.stdout.write(chr(x))
+		del length, x
 
 class Mouse(object):
+
 	def __init__(self):
 		# main data stack can hold all types
 		self._stack = Stack()
@@ -542,17 +564,27 @@ class Mouse(object):
 		# loop stack is used by loop structs, which are technically concurrent
 		self._loops = Stack()
 
-		# memory tape is dynamically growable, addressable memory
-		self._memory   = [0] * 10
-
-		# var dict is variables
-		self._vardict  = {}
-
-		# func dict holds macros
-		self._funcdict = {}
+		# func dict is functions
+		self.funcdict = {}
 
 	def execute(self, toklist, shellnum=None):
-		pass
+		line, char = 0, 0
+		for idx, tok in enumerate(toklist):
+
+			char += 1
+
+			if tok in string.digits:
+				self._stack.push(int(tok))
+			elif tok == ".":
+				self._stack.prn()
+			elif tok == ",":
+				self._stack.emit()
+			elif ord(tok) == 10:
+				line += 1
+				char = 0
+			else:
+				self._stack.log("at char " + str(char) + " line " + str(line) +
+					": word '" + tok + "' needs a definition before use", 2)
 
 stack = Stack()
 

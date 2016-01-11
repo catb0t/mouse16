@@ -181,31 +181,8 @@ Note that while all of the following are implemented in the Python interpeter, n
  * on the uppercase letter variables initialised to arrays of functions, this returns 2 to the power of the letter's zero-indexed position in the alphabet.
  * for other things, it will probably be the `id()` of the type of the item, or the item's
 
-
-* `&` begins a numbered function definition, ending with `;` and callable with `#` ending with `;`
- * files whose first line starts with `#!` will (hopefully) have that line interpreted as a shebang, and ignored.
-
-
-* `|`, if found in an `[]` `if` block, will do `else`. is a no-op outside of `[]`
-
-* `¬` in a `[]` does elif: `1[dothis|elif¬dothat|elsedo{theotherthing}]`: `condition ¬ action`
-
 * `:`, if a `{}` quotation and a valid identifier are on the stack, will assign that quotation to be pushed whenever that identifier is used.
  * if preceded by a bare numeric literal and valid identifier that identifier will push that number.
-
-
-* `«»` enclose a collection-like data structure. the data structure may contain any types.
- * for an ordered array, indexable by position, indicies are separated by `;`: `«value;value»`.
- * for an unordered dictionary, indexable by key, `«key:value;key:value»`
-
-
-* `¤` indexes a data structure
- * if the data structure is keyless:
-    * `«»5¤` pushes the 5th zero indexed item in the list.
-    * `«»"asd"¤` tries to index the list with the key `asd`, and pushes the item's first index
-
- * if the data structure is keyed:
-    * `«»5¤` pushes the value with key `5`
 
 ```
 ROFL:ROFL:LOL:ROFL:ROFL
