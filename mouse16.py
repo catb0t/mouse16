@@ -31,7 +31,8 @@ def main():
 
 
 def interpret():
-	print("mouse16 interpreter (indev)\n")
+	print("mouse16 interpreter (indev)\nsee the bottom of",
+		os.path.basename(sys.argv[0]), "for an idea of syntax")
 	shellnum = 0
 	while True:
 		try:
@@ -570,36 +571,55 @@ class Mouse(object):
 
 	def execute(self, toklist, shellnum=None):
 		line, char = 0, 0
-		in_num = False
 		in_str = False
 		in_quot = False
-		currnum = ""
+		nxt_ischr = False
+		current_buf = ""
+		small_char_atoms = not iseven(toklist.count("'"))
 		for idx, tok in enumerate(toklist):
 
 			char += 1
 
-			if tok in string.digits + ".":
-				in_num = True
-				currnum += tok
-				try:
-					toklist[idx+1]
-				except IndexError:
-					in_num = False
-					if "." in currnum:
-						currnum = float(currnum)
-					else:
-						currnum = int(currnum)
+			if nxt_ischr == True:
+				self._stack.push(ord(tok))
+				nxt_ischr = False
 
-					self._stack.push(currnum)
+			elif tok in string.digits + "." and in_str == False and in_quot == False:
+				current_buf += tok
+				try:
+					toklist[idx + 1]
+				except IndexError:
+					try:
+						if "." in current_buf:
+							current_buf = float(current_buf)
+						else:
+							current_buf = int(current_buf)
+
+						self._stack.push(current_buf)
+						current_buf = ""
+					except ValueError:
+						self._stack.push(0.0)
 
 				else:
-					if toklist[idx+1] not in string.digits + ".":
-						if "." in currnum:
-							currnum = float(currnum)
-						else:
-							currnum = int(currnum)
+					if toklist[idx + 1] not in string.digits:
+						try:
+							if "." in current_buf:
+								current_buf = float(current_buf)
+							else:
+								current_buf = int(current_buf)
 
-						self._stack.push(currnum)
+							self._stack.push(current_buf)
+							current_buf = ""
+						except ValueError:
+							self._stack.push(0.0)
+
+			elif tok == "'":
+				nxt_ischr = True
+				try:
+					toklist[idx + 1]
+				except IndexError:
+					self._stack.log("found EOF before character for literal at char " +
+						str(char + 1) + ", line " + str(line), 2)
 
 			elif tok == "!":
 				self._stack.prn()
@@ -607,14 +627,49 @@ class Mouse(object):
 			elif tok == ",":
 				self._stack.emit()
 
-			elif tok == "":
-				pass
+			elif tok == "+":
+				self._stack.add()
+
+			elif tok == "*":
+				self._stack.mlt()
+
+			elif tok == "/":
+				self._stack.dmd()
+
+			elif tok == "-":
+				self._stack.sub()
+
+			elif tok == "=":
+				self._stack.equ()
+
+			elif tok == ">":
+				self._stack.gtr()
+
+			elif tok == "<":
+				self._stack.lss()
+
+			elif tok == "$":
+				self._stack.dup()
+
+			elif tok == "%":
+				self._stack.swap()
+
+			elif tok == "^":
+				self._stack.over()
+
+			elif tok == "@":
+				self._stack.rot()
+
+			elif tok == "_":
+				self._stack.neg()
 
 			elif ord(tok) == 10:
 				line += 1
 				char = 0
+			elif tok == " ":
+				pass
 			else:
-				self._stack.log("at char " + str(char) + " line " + str(line) +
+				self._stack.log("at char " + str(char) + ", line " + str(line) +
 					": word '" + tok + "' needs a definition before use", 2)
 
 stack = Stack()
