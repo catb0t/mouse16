@@ -633,7 +633,7 @@ class Stack(object):
         """do something while something else is true"""
         pass
 
-class Quotation(object):
+class Quotation(list):
     pass
 
 nop = lambda *args: None
