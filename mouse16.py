@@ -529,7 +529,7 @@ class Stack(object):
 		self.insert(self.copy(), -2)
 		return
 
-	def prn(self):
+	def prn(self, *args, **kwargs):
 		"""pops the top of the stack and prints"""
 		x = self.pop()
 		if x is None:
@@ -539,7 +539,7 @@ class Stack(object):
 			del length
 		del x
 
-	def emit(self):
+	def emit(self, *args, **kwargs):
 		x = self.pop()
 		try:
 			x = int(x)
@@ -550,7 +550,8 @@ class Stack(object):
 				self.log(str(x) + " is not a valid UTF-8 codepoint", 1)
 		else:
 			length = sys.stdout.write(chr(x))
-		del length, x
+			del length
+		del x
 
 class Mouse(object):
 
@@ -569,16 +570,46 @@ class Mouse(object):
 
 	def execute(self, toklist, shellnum=None):
 		line, char = 0, 0
+		in_num = False
+		in_str = False
+		in_quot = False
+		currnum = ""
 		for idx, tok in enumerate(toklist):
 
 			char += 1
 
-			if tok in string.digits:
-				self._stack.push(int(tok))
-			elif tok == ".":
+			if tok in string.digits + ".":
+				in_num = True
+				currnum += tok
+				try:
+					toklist[idx+1]
+				except IndexError:
+					in_num = False
+					if "." in currnum:
+						currnum = float(currnum)
+					else:
+						currnum = int(currnum)
+
+					self._stack.push(currnum)
+
+				else:
+					if toklist[idx+1] not in string.digits + ".":
+						if "." in currnum:
+							currnum = float(currnum)
+						else:
+							currnum = int(currnum)
+
+						self._stack.push(currnum)
+
+			elif tok == "!":
 				self._stack.prn()
+
 			elif tok == ",":
 				self._stack.emit()
+
+			elif tok == "":
+				pass
+
 			elif ord(tok) == 10:
 				line += 1
 				char = 0
