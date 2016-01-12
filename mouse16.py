@@ -48,7 +48,7 @@ def interpret():
             exit(0)
         else:
             shellnum += 1
-            mouse.execute(line, shellnum=shellnum)
+            mouse.execute(line)
 
 
 # simplistic workers
@@ -545,12 +545,9 @@ class Stack(object):
         if isnone(x):
             return
         else:
-            if isinstance(x, Quotation):
-                self.doquot()
-            else:
-                self.drop()
-                length = sys.stdout.write(str(x))
-                del length
+            self.drop()
+            length = sys.stdout.write(str(x))
+            del length
         del x
 
     def emit(self, *args, **kwargs):
@@ -633,28 +630,29 @@ class Mouse(object):
             "\n": (nop, ()),
             "\r": (nop, ()),
             " ": (nop, ()),
-            "_": (self._stack.neg,      ()),
-            "+": (self._stack.add,      ()),
-            "-": (self._stack.sub,      ()),
-            "*": (self._stack.mlt,      ()),
-            "/": (self._stack.dmd,      ()),
-            ">": (self._stack.gtr,      ()),
-            "<": (self._stack.lss,      ()),
-            "=": (self._stack.equ,      ()),
-            ",": (self._stack.emit,     ()),
-            "?": (self._stack.get,      ()),
-            "!": (self._stack.put,      ()),
-            "@": (self._stack.rot,      ()),
-            "$": (self._stack.dup,      ()),
-            "%": (self._stack.swap,     ()),
-            "^": (self._stack.over,     ()),
-            "&": (self._stack.roll,     ()),
-            ";": (self._stack.reveal,   ()),
+            "#": (nop, ()),
+            "_": (self._stack.neg,       ()),
+            "+": (self._stack.add,       ()),
+            "-": (self._stack.sub,       ()),
+            "*": (self._stack.mlt,       ()),
+            "/": (self._stack.dmd,       ()),
+            ">": (self._stack.gtr,       ()),
+            "<": (self._stack.lss,       ()),
+            "=": (self._stack.equ,       ()),
+            ",": (self._stack.emit,      ()),
+            "?": (self._stack.get,       ()),
+            "!": (self._stack.put,       ()),
+            "@": (self._stack.rot,       ()),
+            "$": (self._stack.dup,       ()),
+            "%": (self._stack.swap,      ()),
+            "^": (self._stack.over,      ()),
+            "&": (self._stack.roll,      ()),
+            ";": (self._stack.reveal,    ()),
             "`": (self._string_as_mouse, ()),
             "~": (self._trade_ret_main,  ()),
         }
 
-    def execute(self, toklist, shellnum=None):
+    def execute(self, toklist):
         (self.line,
             self.char)   = 1, 1
         self.in_str      = False
@@ -665,84 +663,88 @@ class Mouse(object):
 
         for idx, tok in enumerate(toklist):
 
-            char += 1
+            self.char += 1
+
+            if tok == "#":
+                import pprint
+                pprint.pprint(self.funcdict)
 
             # take the current line number, when in files.
             # uses \n because it will (maybe?) also detect \r\n on Windows
             if ord(tok) == 10:
-                line += 1
-                char = 1
+                self.line += 1
+                self.char =  1
 
             # quotations have highest precedence
-            if in_quot == True:
-                quotstk.append(tok + " ")
+            if self.in_quot == True:
+                if tok == "}":
+                    self.in_quot = False
+                    self._stack.push(self.quotstk)
+                else:
+                    self.quotstk.append(tok)
 
             # pushes charcode of token
-            elif nxt_ischr == True:
-                self._stack.push(ord(tok))
-                nxt_ischr = False
+            elif self.nxt_ischr == True:
+                    self._stack.push(ord(tok))
+                    self.nxt_ischr = False
 
-            # string recording
-            elif in_str == True:
+                # string recording
+            elif self.in_str == True:
                 if tok == "\"":
                     if toklist[idx - 1] == "\\":
-                        current_buf = current_buf[:-1]
-                        current_buf += "\""
+                        self.current_buf = self.current_buf[:-1]
+                        self.current_buf += "\""
                     else:
-                        self._stack.push("".join(current_buf))
-                        in_str = False
+                        self._stack.push("".join(self.current_buf))
+                        self.in_str = False
                 else:
-                    current_buf += tok
+                    self.current_buf += tok
 
             # *more* string recording.
             elif tok == "\"":
-                in_str = True
+                self.in_str = True
 
             # numbers
             elif (
                 tok in string.digits + "."
-                and in_str  == False
-                and in_quot == False
+                and self.in_str  == False
+                and self.in_quot == False
             ):
-                current_buf += tok
+                self.current_buf += tok
                 try:
                     toklist[idx + 1]
                 except IndexError:
                     try:
-                        if "." in current_buf:
-                            current_buf = float(current_buf)
+                        if "." in self.current_buf:
+                            self.current_buf = float(self.current_buf)
                         else:
-                            current_buf = int(current_buf)
+                            self.current_buf = int(self.current_buf)
 
-                        self._stack.push(current_buf)
-                        current_buf = ""
+                        self._stack.push(self.current_buf)
+                        self.current_buf = ""
                     except ValueError:
                         self._stack.push(0.0)
 
                 else:
                     if toklist[idx + 1] not in string.digits + ".":
                         try:
-                            if "." in current_buf:
-                                current_buf = float(current_buf)
+                            if "." in self.current_buf:
+                                self.current_buf = float(self.current_buf)
                             else:
-                                current_buf = int(current_buf)
+                                self.current_buf = int(self.current_buf)
 
-                            self._stack.push(current_buf)
-                            current_buf = ""
+                            self._stack.push(self.current_buf)
+                            self.current_buf = ""
                         except ValueError:
                             self._stack.push(0.0)
 
             # quotations
             elif tok == "{":
-                in_quot = True
-
-            elif tok == "}":
-                in_quot = False
-                self._stack.push(quotstk)
+                self.in_quot = True
 
             # nxtchr is charcode to record
             elif tok == "'":
-                nxt_ischr = True
+                self.nxt_ischr = True
                 try:
                     toklist[idx + 1]
                 except IndexError:
@@ -767,25 +769,42 @@ class Mouse(object):
                 self._stack.push(self._retstk.pop())
 
             else:
-                nodeftupl = ("at char " + str(char) + ", line " + str(line) +
+                nodeftupl = ("at char " + str(self.char) + ", line " + str(self.line) +
                     ": ignoring token '" + tok +
                     "' which needs a definition before it can be used")
                 try:
                     toklist[idx + 1]
                 except:
-                    self._stack.log(nodeftupl, 2)
-                else:
-                    if toklist[idx + 1] == ":":
-                        if tok in funcdict.keys():
-                            pass
-                        else:
-                            self._stack.log(nodeftupl, 2)
+                    if tok == ":":
+                        pass
                     else:
                         self._stack.log(nodeftupl, 2)
-
+                else:
+                    if toklist[idx + 1] == ":":
+                        redef = False
+                        if tok in self.funcdict.keys():
+                            redef = True
+                        x = self._stack.copyn() # name, then an object
+                        if type(x) is type(Quotation):
+                            self.funcdict[tok] = (self._pushquot,   (x))
+                        else:
+                            self.funcdict[tok] = (self._stack.push, (x))
+                        if redef == True:
+                            print("redefined", tok)
+                    else:
+                        self._stack.log(nodeftupl, 2)
+        else:
+            return
     # end def mouse.execute
 
     # function defs that need access to the runner
+
+    def _writer(self):
+        x = self. _stack.copy()
+        if isinstance(x, Quotation):
+            self.doquot()
+        else:
+            self._stack.put()
 
     def _string_as_mouse(self):
         self.execute(self._stack.pop())
@@ -797,7 +816,11 @@ class Mouse(object):
         self._stack.__stack__  = oldret
         self._retstk.__stack__ = oldstk
 
-    # control structs need access to the runner so not defable by Stack())
+    def _pushquot(self, quot):
+        self._stack.push(quot)
+        self._doquot()
+
+    # control structs need access to the runner so not defable by Stack()
 
     def _dofor(self):
         """do something while something else is true"""
@@ -813,7 +836,7 @@ class Mouse(object):
         x = self._stack.pop()
         if isnone(x):
             return
-
+        self.execute(x)
 
 stack = Stack()
 
