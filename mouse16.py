@@ -37,8 +37,7 @@ def main():
 
 
 def interpret():
-    print("mouse16 interpreter (indev)\nsee the bottom of",
-        os.path.basename(sys.argv[0]), "for syntax")
+    print("mouse16 interpreter (indev)\nsee Mouse.__init__() for syntax")
     shellnum = 0
     while True:
         try:
@@ -51,7 +50,6 @@ def interpret():
         else:
             shellnum += 1
             mouse.execute(line)
-
 
 # simplistic workers
 
@@ -612,18 +610,8 @@ class Stack(object):
         )
         sys.stdout.write("<{}> {}".format(len(stack), peek[1:len(peek) - 1]))
 
-
-class Quotation(Stack):
-
-    def push(self, n):
-        try:
-            n = coer(n, "num")
-            n = int(n) if flt_part(n)[1] == 0 else n
-        except (TypeError, ValueError):
-            pass
-        finally:
-            self.__stack__.append(n)
-
+class Macro(object):
+    pass
 
 class Mouse(object):
 
@@ -643,10 +631,11 @@ class Mouse(object):
 
         # func dict is functions; can be appended to!
         self.funcdict = {
-            "\n": (nop, ()),
-            "\r": (nop, ()),
-            " ": (nop, ()),
-            "#": (nop, ()),
+            chr(4): (nop,                ()),
+            "\n": (nop,                  ()),
+            "\r": (nop,                  ()),
+            " ": (nop,                   ()),
+            "#": (nop,                   ()),
             "_": (self._stack.neg,       ()),
             "+": (self._stack.add,       ()),
             "-": (self._stack.sub,       ()),
@@ -675,7 +664,8 @@ class Mouse(object):
         self.in_quot     = False
         self.nxt_ischr   = False
         self.current_buf = ""
-        self.quotstk     = Quotation()
+        self.iff_list    = []
+        self.whilestk    = []
 
         for idx, tok in enumerate(toklist):
 
@@ -698,14 +688,9 @@ class Mouse(object):
             if self.in_quot == True:
                 if tok == "}":
                     self.in_quot = False
-                    for i, j in enumerate(self.quotstk.__stack__):
-                        if j in self.funcdict.keys():
-                            self.quotstk.__stack__[i] = self.funcdict[j]
-
                     self._stack.push(self.quotstk)
-
                 else:
-                    self.quotstk.push(tok)
+                    self.quotstk.append(tok)
 
             # pushes charcode of token
             elif self.nxt_ischr == True:
@@ -805,16 +790,7 @@ class Mouse(object):
                         self._stack.log(nodeftupl, 2)
                 else:
                     if toklist[idx + 1] == ":":
-                        redef = False
-                        if tok in self.funcdict.keys():
-                            redef = True
-                        x = self._stack.copyn() # name, then an object
-                        if type(x) is type(Quotation):
-                            self.funcdict[tok] = (self._pushquot,   (x))
-                        else:
-                            self.funcdict[tok] = (self._stack.push, (x))
-                        if redef == True:
-                            print("redefined", tok)
+                        pass
                     else:
                         self._stack.log(nodeftupl, 2)
         else:
@@ -825,8 +801,8 @@ class Mouse(object):
 
     def _writer(self):
         x = self._stack.copy()
-        if isinstance(x, Quotation):
-            self._doquot()
+        if isinstance(x, Macro):
+            self._runfunc()
         elif isnone(x):
             return
         else:
@@ -842,10 +818,6 @@ class Mouse(object):
         self._stack.__stack__  = oldret
         self._retstk.__stack__ = oldstk
 
-    def _pushquot(self, quot):
-        self._stack.push(quot)
-        self._doquot()
-
     # control structs need access to the runner so not defable by Stack()
 
     def _dofor(self):
@@ -859,11 +831,12 @@ class Mouse(object):
 
     def _doquot(self):
         """pops a quotation, and executes everything inside it"""
+        return
         x = self._stack.pop()
         if isnone(x):
             return
         x.__stack__ = [str(i) for i in x.__stack__]
-        self.execute(x.__stack__)
+        self.execute(x)
 
 stack = Stack()
 
