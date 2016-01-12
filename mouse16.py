@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import readline, os, sys, string, warnings
+import pprint, readline, os, sys, string, warnings
 
 # affects underflowerror behaviour and shebang interpretation
 _fromfile = False
@@ -192,8 +192,14 @@ class Stack(object):
         drops and returns n items from the stack"""
         x = []
         for i in range(n):
-                x.append(self.pop(idex=idx))
-        return tuple(x)
+                    y = self.pop(idex=idx)
+                    if not isnone(y):
+                        x.append(y)
+                    else:
+                        break
+        if len(x) == n:
+            return tuple(x)
+        return (None, None)
 
     def push(self, x):
         """( -- x )
@@ -635,7 +641,6 @@ class Mouse(object):
             "\n": (nop,                  ()),
             "\r": (nop,                  ()),
             " ": (nop,                   ()),
-            "#": (nop,                   ()),
             "_": (self._stack.neg,       ()),
             "+": (self._stack.add,       ()),
             "-": (self._stack.sub,       ()),
@@ -655,28 +660,28 @@ class Mouse(object):
             ";": (self._stack.reveal,    ()),
             "`": (self._string_as_mouse, ()),
             "~": (self._trade_ret_main,  ()),
+            "NUL1": (self._retstk.push, (self._stack.pop))
+            "NUL2": (self._stack.push, (self._retstk.pop))
         }
 
+        self.funcdict["#"] = pprint.pprint(self.funcdict)
+
     def execute(self, toklist):
-        (self.line,
-            self.char)   = 1, 1
-        self.in_str      = False
-        self.in_quot     = False
-        self.nxt_ischr   = False
         self.current_buf = ""
-        self.iff_list    = []
-        self.whilestk    = []
+
+        self.iff_list,
+        self.whilestk = [], []
+
+        self.line,
+        self.char = 1, 1
+
+        self.in_str,
+        self.in_quot,
+        self.nxt_ischr = False, False, False
 
         for idx, tok in enumerate(toklist):
 
             self.char += 1
-
-            if len(tok) > 1:
-                pass
-
-            elif tok == "#":
-                import pprint
-                pprint.pprint(self.funcdict)
 
             # take the current line number, when in files.
             # uses \n because it will (maybe?) also detect \r\n on Windows
@@ -770,12 +775,6 @@ class Mouse(object):
                 except ValueError as error:
                     raise BadInternalCallException(
                         "junk call found, possible bug") from error
-
-            elif tok == "(":
-                self._retstk.push(self._stack.pop())
-
-            elif tok == ")":
-                self._stack.push(self._retstk.pop())
 
             else:
                 nodeftupl = ("at char " + str(self.char) + ", line " + str(self.line) +
