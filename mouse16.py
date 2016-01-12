@@ -19,7 +19,7 @@ def main():
             os.stat(sys.argv[1])
         except IOError as error:
             print(error, "\nstat: cannot stat '" + sys.argv[1] +
-                "': no such file or directory, interpreting from stdio instead\n")
+                "': no such file or directory, interpreting using stdio instead\n")
             interpret()
             exit(0)
         else:
@@ -36,18 +36,19 @@ def main():
 
 def interpret():
     print("mouse16 interpreter (indev)\nsee the bottom of",
-        os.path.basename(sys.argv[0]), "for an idea of syntax")
+        os.path.basename(sys.argv[0]), "for syntax")
     shellnum = 0
     while True:
         try:
-            line = list(input("\nin:" + str(shellnum) + "  "))
-            shellnum += 1
-            mouse.execute(line, shellnum=shellnum)
+            line = list(input("\nmouse  " + str(shellnum) + " )  "))
         except KeyboardInterrupt as kbint:
             print("\naborted")
         except EOFError:
             print("\nbye\n")
             exit(0)
+        else:
+            shellnum += 1
+            mouse.execute(line, shellnum=shellnum)
 
 
 @contextlib.contextmanager
@@ -104,6 +105,8 @@ iseven = lambda n: int(n) % 2 == 0
 toeven = lambda n: int(n - 1) if not iseven(n) else int(n)
 
 isnone = lambda x: isinstance(x, type(None))
+
+nop = lambda *args: None
 
 # I don't /want/ to pass a tuple to any/all
 
@@ -176,16 +179,16 @@ class Stack(object):
     def error(self, errkey):
         """interface for throwing fatal errors"""
         errors = {
-            "zerodiv"        : "attempted to perform integer or float division or modulo by zero",
-            "stackunderflow" : "stack underflow: not enough operands on stack for operator",
-            "stackoverflow"  : "stack overflow: the stack size exceeded its allocation",
-            "recursionerr"   : "call stack exceeded maximum recursion depth"
+            "zerodiv"       : "attempted to perform integer or float division or modulo by zero",
+            "stackunderflow": "stack underflow: not enough operands on stack for <operator>",
+            "stackoverflow" : "stack overflow: stack size exceeded memory",
+            "recursionerr"  : "call stack exceeded maximum recursion depth"
         }
         self.log(errors[errkey], 4, stklvl=5)
         return
 
     def nosuchop(self, operator, operands):
-        """interface for logging TypeWarnings about operator/operand relations"""
+        """interface for logging TypeWarnings about interoperand relations"""
         operands = [str(type(i)).split("'")[1] for i in operands]
         message = "undefined operator for operand types:\n\toperator: \
         {}\n\toperands: {} and {}\n".format(
@@ -237,7 +240,6 @@ class Stack(object):
             return self.__stack__[-1]
         except IndexError:
             self.error("stackunderflow")
-        return
 
     def copyn(self, n=2):
         """( z y x -- z y x z y x )
@@ -254,7 +256,6 @@ class Stack(object):
             self.__stack__.insert(idex, item)
         except LookupError as error:
             raise BadInternalCallException("junk list index") from error
-        return
 
     def insertn(self, items, lidex):
         """( z y x -- z b y x )
@@ -291,6 +292,9 @@ class Stack(object):
         performs binary addition
         if x and y are strings, concatenates strings."""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         if allof(isstr(x), isstr(y)):
             self.push(x + y)
 
@@ -314,6 +318,9 @@ class Stack(object):
         if x and y are strings,
         remove z occurrences of x from y, or all occurrences if ~z"""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         if allof(isstr(x), isstr(y)):
             try:
                 z = self.pop()
@@ -355,6 +362,9 @@ class Stack(object):
         the string will be copied and catenated onto itself
         if both operands are strings, interleaving will occur"""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         if allof(isstr(x), isstr(y)):
             self.push("".join(i for j in zip(x, y) for i in j))
         elif (
@@ -372,6 +382,9 @@ class Stack(object):
         push x div y, then push x modulo y: perform binary div, then binary mod
         this operator is not yet defined for strings"""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         if allof(isnum(x), isnum(y)):
             try:
                 self.pushn([x % y, x / y])
@@ -386,6 +399,9 @@ class Stack(object):
         divide x by y, flooring the result: perform binary floor division
         this operator is not yet defined for strings."""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         if allof(isnum(x), isnum(y)):
             try:
                 self.push(x // y)
@@ -399,6 +415,9 @@ class Stack(object):
         """( y x -- x<y? )
         push 1 if x is less than y: perform binary ordering"""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         try:
             self.push(bool2int(x < y))
         except TypeError:
@@ -409,6 +428,9 @@ class Stack(object):
         """( y x -- x>y? )
         push 1 if x is greater than y: perform binary ordering"""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         try:
             self.push(bool2int(x > y))
         except TypeError:
@@ -419,6 +441,9 @@ class Stack(object):
         """( y x -- x=y? )
         push 1 if x is equal to y: perform equality comparison"""
         y, x = self.popn()
+        if anyof(isnone(x), isnone(y)):
+            return
+
         if allof(isnum(x), isnum(y)):
             self.push(bool2int(x == y))
 
@@ -444,7 +469,6 @@ class Stack(object):
                 self.push(bool2int(float(x) == float(y)))
         else:
             self.nosuchop("equ", [x, y])
-        return
 
     def neg(self):
         """( x -- -x )
@@ -453,13 +477,10 @@ class Stack(object):
         x = self.pop()
         if isnum(x):
             self.push(signflip(x))
-            return
         elif isstr(x) or isarr(x):
             self.push(x[::-1])
-            return
         else:
             self.nosuchop("dmd", [x, None])
-        return
 
     # here ends math and begins actual stack operations
     # all of these should be type-agnostic
@@ -468,7 +489,6 @@ class Stack(object):
         """( y x -- y x x )
         push a copy of the TOS"""
         self.push(self.copy())
-        return
 
     def dupn(self, n=2):
         """( z y x -- z y x y x )
@@ -476,13 +496,11 @@ class Stack(object):
         x = self.copyn(n)
         for i in x:
             self.push(i)
-        return
 
     def swap(self):
         """( y x -- x y )
         swap the top two items on the stack"""
         self.pushn(self.popn())
-        return
 
     def rot(self):
         """( z y x w -- z w y x )
@@ -493,77 +511,67 @@ class Stack(object):
             self.pop()
         for i in x:
             self.push(i)
-        return
 
     def urot(self):
         """( z y x w -- z x w y )
         rotates only top three items down"""
         self.insert(self.pop(), -3)
-        return
 
     def roll(self):
         """( z y x -- y x z )
         roll the stack up"""
         self.push(self.pop(0))
-        return
 
     def rolln(self, n=2):
         """( z y x -- x z y )
         roll the stack up by n"""
         for i in range(n):
             self.roll()
-        return
 
     def uroll(self):
         """( z y x -- x z y )
         roll the stack down"""
         self.insert(self.pop(), 0)
-        return
 
     def urolln(self, n=2):
         """( z y x -- y x z )
         roll the stack down by n"""
         for i in range(n):
             self.uroll()
-        return
 
     def drop(self):
         """( y x -- y )
         silently drops from the stack"""
         self.pop()
-        return
 
     def dropn(self, n=2):
         """( y x -- )
         silently drops n items from the stack"""
         self.popn(n)
-        return
 
     def over(self):
         """( z y x -- z y x y )
         copies second-to-top item to TOS"""
         self.push(self.index(2))
-        return
 
     def nip(self):
         """( y x -- x )
         silently drops second-to-top item"""
         self.pop(self.index(2))
-        return
 
     def tuck(self):
         """( y x -- x y x )
         copies TOS behind second-to-top"""
         self.insert(self.copy(), -2)
-        return
 
     # i/o
 
     def put(self, *args, **kwargs):
-        """pops the top of the stack and prints/executes"""
+        """( x -- )
+        pops the top of the stack and prints/executes"""
         x = self.copy()
-        if x is None:
-            pass
+        if isnone(x):
+            return
         else:
             if isinstance(x, Quotation):
                 self.doquot()
@@ -574,12 +582,15 @@ class Stack(object):
         del x
 
     def emit(self, *args, **kwargs):
+        """( -- )
+        pops the top of the stack and prints that unicode char
+        """
         x = self.pop()
         try:
             x = int(x)
         except TypeError:
-            if x is None:
-                pass
+            if isnone(x):
+                return
             else:
                 self.log(str(x) + " is not a valid UTF-8 codepoint", 1)
         else:
@@ -594,38 +605,23 @@ class Stack(object):
 
     def getuntil(self):
         """read stdin until the char on the stack is read"""
-        toread = stack.pop()
+        x = self.pop()
+        if isnone(x):
+            return
+        toread = chr(x)
         buf = []
-        seen_minus = False
+        seen_char = False
         while True:
             char = sys.stdin.read(1)
             if not char:
                 break
-            if char == toread and seen_minus:
+            if char == toread and nxt_end:
                 buf.pop()
                 break
             else:
-                seen_minus = (char == toread)
+                nxt_end = (char == toread)
                 buf.append(char)
-        self.push(''.join(buf))
-
-    def getnum(self):
-        """read stdin until the char on the stack is read"""
-        toread = stack.pop()
-        if not isnum(toread):
-            self.log("need a number of chars to read not " + str(type(toread)), 1)
-            return
-        buf = []
-        for i in range(toread):
-            char = sys.stdin.read(1)
-            if not char:
-                break
-            if char == '1' and seen_minus:
-                buf.pop()
-                break
-            else:
-                buf.append(char)
-        return ''.join(buf)
+        self.push("".join(buf))
 
     # control structs
 
@@ -633,10 +629,14 @@ class Stack(object):
         """do something while something else is true"""
         pass
 
+    def simple_cond(self):
+        """pops a quotation as a condition, another to execute if true,
+        and another to execute if the condition is false"""
+        pass
+
 class Quotation(list):
     pass
 
-nop = lambda *args: None
 
 class Mouse(object):
 
@@ -674,18 +674,43 @@ class Mouse(object):
 
     def execute(self, toklist, shellnum=None):
         line, char = 0, 0
+
         in_str = False
+
         in_quot = False
+
         nxt_ischr = False
+
         current_buf = ""
-        small_char_atoms = not iseven(toklist.count("'"))
+
         for idx, tok in enumerate(toklist):
 
             char += 1
 
+            if ord(tok) == 10:
+                line += 1
+                char = 0
+
             if nxt_ischr == True:
                 self._stack.push(ord(tok))
                 nxt_ischr = False
+
+            elif in_str == True:
+                if tok == "\"":
+                    self._stack.push("".join(current_buf))
+                    in_str = False
+                else:
+                    current_buf += tok
+
+            elif tok == "\"":
+                in_str = True
+                try:
+                    toklist[idx + 1]
+                except IndexError:
+                    # the string literal will silently continue to the end of the program if no close quote is found.
+                    pass
+                else:
+                    pass
 
             elif (
                 tok in string.digits + "."
@@ -726,8 +751,8 @@ class Mouse(object):
                     toklist[idx + 1]
                 except IndexError:
                     self._stack.log(
-                        "found EOF before character for literal at char "
-                        + str(char + 1) + ", line " + str(line) +
+                        "found EOF before character for literal at char " +
+                        str(char + 1) + ", line " + str(line) +
                         " : file " + filename, 2
                     )
 
@@ -740,10 +765,6 @@ class Mouse(object):
 
             elif tok == ")":
                 self._stack.push(self._retstk.pop())
-
-            elif ord(tok) == 10:
-                line += 1
-                char = 0
 
             else:
                 try:
