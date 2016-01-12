@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import contextlib, readline, os, sys, string, warnings
+import readline, os, sys, string, warnings
 
 # affects underflowerror behaviour and shebang interpretation
 _fromfile = False
@@ -50,40 +50,6 @@ def interpret():
             shellnum += 1
             mouse.execute(line, shellnum=shellnum)
 
-
-@contextlib.contextmanager
-def nostderr():
-    savestderr = sys.stderr
-
-    class Devnull(object):
-
-        def write(self, _):
-            pass
-
-        def flush(self):
-            pass
-
-    sys.stderr = Devnull()
-
-    try:
-        yield
-    finally:
-        sys.stderr = savestderr
-
-
-def test():
-    try:
-        import mousetesting
-    except ImportError as error:
-        try:
-            import mousetesthlink as mousetesting
-        except ImportError:
-            print(error)
-            print("\ntesting module not found in search path, ignoring")
-            return
-
-    with nostderr():
-        mousetesting.main()
 
 # simplistic workers
 
@@ -632,13 +598,14 @@ class Stack(object):
     # prints a "presentable" representation of the stack
 
     def reveal(self):
-        string = (
-            str(self.inspect())
+        stack = self.inspect()
+        peek = (
+            str(stack)
             .replace("[", "{")
             .replace("]", "}")
             .replace(",",  "")
         )
-        sys.stdout.write(string)
+        sys.stdout.write("<{}> {}".format(len(stack), peek[1:len(peek) - 1]))
 
 
 class Quotation(list):
@@ -658,10 +625,10 @@ class Mouse(object):
 
         # loop stack is used by loop structs, which are technically concurrent
         # in Forth, the loop stack *is* the return stack; I want to avoid
-        # mangling valuable return stack values: I'm not pressed for space
+        # mangling valuable return stack values: I'm not pressed for memory
         self._loopstk = Stack()
 
-        # func dict is functions
+        # func dict is functions; can be appended to!
         self.funcdict = {
             "\n": (nop, ()),
             "\r": (nop, ()),
@@ -683,8 +650,8 @@ class Mouse(object):
             "^": (self._stack.over,     ()),
             "&": (self._stack.roll,     ()),
             ";": (self._stack.reveal,   ()),
-            "`": (self.string_as_mouse, ()),
-            "~": (self.trade_ret_main,  ()),
+            "`": (self._string_as_mouse, ()),
+            "~": (self._trade_ret_main,  ()),
         }
 
     def execute(self, toklist, shellnum=None):
@@ -820,10 +787,10 @@ class Mouse(object):
 
     # function defs that need access to the runner
 
-    def string_as_mouse(self):
+    def _string_as_mouse(self):
         self.execute(self._stack.pop())
 
-    def trade_ret_main(self):
+    def _trade_ret_main(self):
         oldstk = self._stack.clean()
         oldret = self._retstk.clean()
 
@@ -832,18 +799,21 @@ class Mouse(object):
 
     # control structs need access to the runner so not defable by Stack())
 
-    def dofor(self):
+    def _dofor(self):
         """do something while something else is true"""
         pass
 
-    def simple_cond(self):
+    def _simple_cond(self):
         """pops a quotation as a condition, another to execute if true,
         and another to execute if the condition is false"""
         pass
 
-    def doquot(self):
+    def _doquot(self):
         """pops a quotation, and executes everything inside it"""
-        pass
+        x = self._stack.pop()
+        if isnone(x):
+            return
+
 
 stack = Stack()
 
