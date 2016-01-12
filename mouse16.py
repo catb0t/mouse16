@@ -681,7 +681,10 @@ class Mouse(object):
 
             self.char += 1
 
-            if tok == "#":
+            if len(tok) > 1:
+                pass
+
+            elif tok == "#":
                 import pprint
                 pprint.pprint(self.funcdict)
 
@@ -699,7 +702,7 @@ class Mouse(object):
                         if j in self.funcdict.keys():
                             self.quotstk.__stack__[i] = self.funcdict[j]
 
-                    self._stack.push(self.quotstk.__stack__)
+                    self._stack.push(self.quotstk)
 
                 else:
                     self.quotstk.push(tok)
@@ -709,7 +712,7 @@ class Mouse(object):
                     self._stack.push(ord(tok))
                     self.nxt_ischr = False
 
-                # string recording
+            # string recording
             elif self.in_str == True:
                 if tok == "\"":
                     if toklist[idx - 1] == "\\":
@@ -822,9 +825,10 @@ class Mouse(object):
 
     def _writer(self):
         x = self._stack.copy()
-        print(type(x))
         if isinstance(x, Quotation):
             self._doquot()
+        elif isnone(x):
+            return
         else:
             self._stack.put()
 
@@ -858,7 +862,8 @@ class Mouse(object):
         x = self._stack.pop()
         if isnone(x):
             return
-        self.execute(x)
+        x.__stack__ = [str(i) for i in x.__stack__]
+        self.execute(x.__stack__)
 
 stack = Stack()
 
