@@ -75,12 +75,15 @@ def test():
     try:
         import mousetesting
     except ImportError as error:
-        print(error)
-        print("\ntesting module not found in search path, ignoring")
-        return
+        try:
+            import mousetesthlink as mousetesting
+        except ImportError:
+            print(error)
+            print("\ntesting module not found in search path, ignoring")
+            return
 
     with nostderr():
-        mousetesting.unittest.main()
+        mousetesting.main()
 
 # simplistic workers
 
@@ -189,13 +192,16 @@ class Stack(object):
 
     def nosuchop(self, operator, operands):
         """interface for logging TypeWarnings about interoperand relations"""
+
         operands = [str(type(i)).split("'")[1] for i in operands]
+
         message = "undefined operator for operand types:\n\toperator: \
         {}\n\toperands: {} and {}\n".format(
             operator,
             operands[0],
             operands[1],
         )
+
         self.log(message, 1, stklvl=5)
 
     def inspect(self):
@@ -626,10 +632,12 @@ class Stack(object):
     # prints a "presentable" representation of the stack
 
     def reveal(self):
-        string = (str(self.inspect())
+        string = (
+            str(self.inspect())
             .replace("[", "{")
             .replace("]", "}")
-            .replace(",", ""))
+            .replace(",",  "")
+        )
         sys.stdout.write(string)
 
 
@@ -655,27 +663,28 @@ class Mouse(object):
 
         # func dict is functions
         self.funcdict = {
-            chr(0): (nop, ()),
+            "\n": (nop, ()),
+            "\r": (nop, ()),
             " ": (nop, ()),
-            "_": (self._stack.neg, ()),
-            "+": (self._stack.add, ()),
-            "-": (self._stack.sub, ()),
-            "*": (self._stack.mlt, ()),
-            "/": (self._stack.dmd, ()),
-            ">": (self._stack.gtr, ()),
-            "<": (self._stack.lss, ()),
-            "=": (self._stack.equ, ()),
-            ",": (self._stack.emit, ()),
-            "?": (self._stack.get, ()),
-            "!": (self._stack.put, ()),
-            "@": (self._stack.rot, ()),
-            "$": (self._stack.dup, ()),
-            "%": (self._stack.swap, ()),
-            "^": (self._stack.over, ()),
-            "&": (self._stack.roll, ()),
-            ";": (self._stack.reveal, ()),
+            "_": (self._stack.neg,      ()),
+            "+": (self._stack.add,      ()),
+            "-": (self._stack.sub,      ()),
+            "*": (self._stack.mlt,      ()),
+            "/": (self._stack.dmd,      ()),
+            ">": (self._stack.gtr,      ()),
+            "<": (self._stack.lss,      ()),
+            "=": (self._stack.equ,      ()),
+            ",": (self._stack.emit,     ()),
+            "?": (self._stack.get,      ()),
+            "!": (self._stack.put,      ()),
+            "@": (self._stack.rot,      ()),
+            "$": (self._stack.dup,      ()),
+            "%": (self._stack.swap,     ()),
+            "^": (self._stack.over,     ()),
+            "&": (self._stack.roll,     ()),
+            ";": (self._stack.reveal,   ()),
             "`": (self.string_as_mouse, ()),
-            "~": (self.trade_ret_main, ()),
+            "~": (self.trade_ret_main,  ()),
         }
 
     def execute(self, toklist, shellnum=None):
@@ -725,7 +734,7 @@ class Mouse(object):
             # numbers
             elif (
                 tok in string.digits + "."
-                and in_str == False
+                and in_str  == False
                 and in_quot == False
             ):
                 current_buf += tok
@@ -818,7 +827,7 @@ class Mouse(object):
         oldstk = self._stack.clean()
         oldret = self._retstk.clean()
 
-        self._stack.__stack__ = oldret
+        self._stack.__stack__  = oldret
         self._retstk.__stack__ = oldstk
 
     # control structs need access to the runner so not defable by Stack())
