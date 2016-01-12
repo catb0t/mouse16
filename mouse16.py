@@ -25,9 +25,11 @@ def main():
         else:
             _fromfile = True
             filename = sys.argv[1]
-            filio = open(filename, 'r')
-            prog = list(filio.read())
-            filio.close()
+            try:
+                filio = open(filename, 'r')
+                prog = list(filio.read())
+            finally:
+                filio.close()
             mouse.execute(prog)
             exit(0)
     else:
@@ -97,6 +99,12 @@ def coer(obj, typ):
         return typ(obj)
     except (ValueError, TypeError, NameError) as error:
         raise BadInternalCallException("junk type coersion", error)
+
+
+def flt_part(num):
+    num = str(num)
+    num = num.split(".") if "." in num else [num, 0]
+    return [int(num[0]), int(num[1])]
 
 
 # these are placeholders, don't mind them
@@ -605,8 +613,16 @@ class Stack(object):
         sys.stdout.write("<{}> {}".format(len(stack), peek[1:len(peek) - 1]))
 
 
-class Quotation(list):
-    pass
+class Quotation(Stack):
+
+    def push(self, n):
+        try:
+            n = coer(n, "num")
+            n = int(n) if flt_part(n)[1] == 0 else n
+        except (TypeError, ValueError):
+            pass
+        finally:
+            self.__stack__.append(n)
 
 
 class Mouse(object):
@@ -641,7 +657,7 @@ class Mouse(object):
             "=": (self._stack.equ,       ()),
             ",": (self._stack.emit,      ()),
             "?": (self._stack.get,       ()),
-            "!": (self._stack.put,       ()),
+            "!": (self._writer,          ()),
             "@": (self._stack.rot,       ()),
             "$": (self._stack.dup,       ()),
             "%": (self._stack.swap,      ()),
@@ -679,9 +695,14 @@ class Mouse(object):
             if self.in_quot == True:
                 if tok == "}":
                     self.in_quot = False
-                    self._stack.push(self.quotstk)
+                    for i, j in enumerate(self.quotstk.__stack__):
+                        if j in self.funcdict.keys():
+                            self.quotstk.__stack__[i] = self.funcdict[j]
+
+                    self._stack.push(self.quotstk.__stack__)
+
                 else:
-                    self.quotstk.append(tok)
+                    self.quotstk.push(tok)
 
             # pushes charcode of token
             elif self.nxt_ischr == True:
@@ -800,9 +821,10 @@ class Mouse(object):
     # function defs that need access to the runner
 
     def _writer(self):
-        x = self. _stack.copy()
+        x = self._stack.copy()
+        print(type(x))
         if isinstance(x, Quotation):
-            self.doquot()
+            self._doquot()
         else:
             self._stack.put()
 
