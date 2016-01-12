@@ -623,16 +623,15 @@ class Stack(object):
                 buf.append(char)
         self.push("".join(buf))
 
-    # control structs
+    # prints a "presentable" representation of the stack
 
-    def dofor(self):
-        """do something while something else is true"""
-        pass
+    def reveal(self):
+        string = (str(self.inspect())
+            .replace("[", "{")
+            .replace("]", "}")
+            .replace(",", ""))
+        sys.stdout.write(string)
 
-    def simple_cond(self):
-        """pops a quotation as a condition, another to execute if true,
-        and another to execute if the condition is false"""
-        pass
 
 class Quotation(list):
     pass
@@ -641,17 +640,22 @@ class Quotation(list):
 class Mouse(object):
 
     def __init__(self):
-        # main data stack can hold all types
+        # main data stack
         self._stack = Stack()
 
         # return stack is optional secondary stack allowing for "return" values
+        # you can do math and stuff with the return stack, but you'll need to
+        # define your own operators to do that.
         self._retstk = Stack()
 
         # loop stack is used by loop structs, which are technically concurrent
+        # in Forth, the loop stack *is* the return stack; I want to avoid
+        # mangling valuable return stack values: I'm not pressed for space
         self._loopstk = Stack()
 
         # func dict is functions
         self.funcdict = {
+            chr(0): (nop, ()),
             " ": (nop, ()),
             "_": (self._stack.neg, ()),
             "+": (self._stack.add, ()),
@@ -665,53 +669,60 @@ class Mouse(object):
             "?": (self._stack.get, ()),
             "!": (self._stack.put, ()),
             "@": (self._stack.rot, ()),
-            "#": (nop, ()),
             "$": (self._stack.dup, ()),
             "%": (self._stack.swap, ()),
             "^": (self._stack.over, ()),
             "&": (self._stack.roll, ()),
+            ";": (self._stack.reveal, ()),
+            "`": (self.string_as_mouse, ()),
+            "~": (self.trade_ret_main, ()),
         }
 
     def execute(self, toklist, shellnum=None):
-        line, char = 0, 0
-
-        in_str = False
-
-        in_quot = False
-
-        nxt_ischr = False
-
-        current_buf = ""
+        (self.line,
+            self.char)   = 1, 1
+        self.in_str      = False
+        self.in_quot     = False
+        self.nxt_ischr   = False
+        self.current_buf = ""
+        self.quotstk     = Quotation()
 
         for idx, tok in enumerate(toklist):
 
             char += 1
 
+            # take the current line number, when in files.
+            # uses \n because it will (maybe?) also detect \r\n on Windows
             if ord(tok) == 10:
                 line += 1
-                char = 0
+                char = 1
 
-            if nxt_ischr == True:
+            # quotations have highest precedence
+            if in_quot == True:
+                quotstk.append(tok + " ")
+
+            # pushes charcode of token
+            elif nxt_ischr == True:
                 self._stack.push(ord(tok))
                 nxt_ischr = False
 
+            # string recording
             elif in_str == True:
                 if tok == "\"":
-                    self._stack.push("".join(current_buf))
-                    in_str = False
+                    if toklist[idx - 1] == "\\":
+                        current_buf = current_buf[:-1]
+                        current_buf += "\""
+                    else:
+                        self._stack.push("".join(current_buf))
+                        in_str = False
                 else:
                     current_buf += tok
 
+            # *more* string recording.
             elif tok == "\"":
                 in_str = True
-                try:
-                    toklist[idx + 1]
-                except IndexError:
-                    # the string literal will silently continue to the end of the program if no close quote is found.
-                    pass
-                else:
-                    pass
 
+            # numbers
             elif (
                 tok in string.digits + "."
                 and in_str == False
@@ -745,6 +756,15 @@ class Mouse(object):
                         except ValueError:
                             self._stack.push(0.0)
 
+            # quotations
+            elif tok == "{":
+                in_quot = True
+
+            elif tok == "}":
+                in_quot = False
+                self._stack.push(quotstk)
+
+            # nxtchr is charcode to record
             elif tok == "'":
                 nxt_ischr = True
                 try:
@@ -758,7 +778,11 @@ class Mouse(object):
 
             elif tok in self.funcdict:
                 self.func, self.arg = self.funcdict.get(tok, nop)
-                self.func(*self.arg)
+                try:
+                    self.func(*self.arg)
+                except ValueError as error:
+                    raise BadInternalCallException(
+                        "junk call found, possible bug") from error
 
             elif tok == "(":
                 self._retstk.push(self._stack.pop())
@@ -767,18 +791,50 @@ class Mouse(object):
                 self._stack.push(self._retstk.pop())
 
             else:
+                nodeftupl = ("at char " + str(char) + ", line " + str(line) +
+                    ": ignoring token '" + tok +
+                    "' which needs a definition before it can be used")
                 try:
                     toklist[idx + 1]
                 except:
-                    self._stack.log(
-                        "at char " + str(char) + ", line " + str(line) +
-                        ": ignoring token '" + tok +
-                        "' which needs a definition before it can be used", 2
-                    )
+                    self._stack.log(nodeftupl, 2)
                 else:
                     if toklist[idx + 1] == ":":
                         if tok in funcdict.keys():
                             pass
+                        else:
+                            self._stack.log(nodeftupl, 2)
+                    else:
+                        self._stack.log(nodeftupl, 2)
+
+    # end def mouse.execute
+
+    # function defs that need access to the runner
+
+    def string_as_mouse(self):
+        self.execute(self._stack.pop())
+
+    def trade_ret_main(self):
+        oldstk = self._stack.clean()
+        oldret = self._retstk.clean()
+
+        self._stack.__stack__ = oldret
+        self._retstk.__stack__ = oldstk
+
+    # control structs need access to the runner so not defable by Stack())
+
+    def dofor(self):
+        """do something while something else is true"""
+        pass
+
+    def simple_cond(self):
+        """pops a quotation as a condition, another to execute if true,
+        and another to execute if the condition is false"""
+        pass
+
+    def doquot(self):
+        """pops a quotation, and executes everything inside it"""
+        pass
 
 stack = Stack()
 
