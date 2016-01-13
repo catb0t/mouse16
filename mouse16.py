@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
 
+
+# stackoverflow.com questions that helped shape this project:
+#
+# Crafting impeccable unittests             -- stackoverflow.com/q/34701382
+#
+# Readable, controllable iterator indicies  -- stackoverflow.com/q/34734137
+#
+# Code style particulars                    -- stackoverflow.com/q/34746311
+#
+# Overloading the assignment operator       -- stackoverflow.com/q/34757038
+#
+# How to Pythonically log nonfatal errors   -- stackoverflow.com/q/26357367
+#
+# and many more, to which I didn't contribute.
+
 import pprint, readline, os, sys, string, warnings
 
 # affects underflowerror behaviour and shebang interpretation
@@ -11,6 +26,8 @@ filename = "stdin (typewriter)"
 # allows warnings that occur multiple times in a session to be visible
 warnings.simplefilter("always")
 
+# programmatical check if the parser's jumped or not -- used by SimpleIndex
+jmpd = False
 
 def main():
     global _fromfile, filename
@@ -23,6 +40,7 @@ def main():
             interpret()
             exit(0)
         else:
+            global _fromfile, filename
             _fromfile = True
             filename = sys.argv[1]
             try:
@@ -341,7 +359,7 @@ class Stack(object):
 
     def mlt(self):
         """( y x -- x*y )
-        multiply x by y: perform binary multilpication
+        multiply x by y: perform binary multiplication
         if one operand is a string and the other is an integer,
         the string will be copied and catenated onto itself
         if both operands are strings, interleaving will occur"""
@@ -616,8 +634,39 @@ class Stack(object):
         )
         sys.stdout.write("<{}> {}".format(len(stack), peek[1:len(peek) - 1]))
 
+
+class CaptainHook(object):
+    def __init__(self):
+
+        self.v = 0
+
+    def __eq__(self, o):
+        if o == self.v:
+            return True
+        return False
+
+    def __gt__(self, o):
+        if o > self.v:
+            return True
+        return False
+
+    def __lt__(self, o):
+        if o < self.v:
+            return True
+        return False
+
+    def __setattr__(self, n, x):
+        if isnum(x):
+            global jmpd
+            print("mode of", n, "changed from", self.v, "to", x)
+            print("whether a jump had occurred changed from", jmpd, "to True")
+            jmpd = True
+            super().__setattr__(n, v)
+
+
 class Macro(object):
     pass
+
 
 class Mouse(object):
 
@@ -629,11 +678,6 @@ class Mouse(object):
         # you can do math and stuff with the return stack, but you'll need to
         # define your own operators to do that.
         self._retstk = Stack()
-
-        # loop stack is used by loop structs, which are technically concurrent
-        # in Forth, the loop stack *is* the return stack; I want to avoid
-        # mangling valuable return stack values: I'm not pressed for memory
-        self._loopstk = Stack()
 
         # func dict is functions; can be appended to!
         self.funcdict = {
@@ -659,14 +703,22 @@ class Mouse(object):
             "&": (self._stack.roll,      ()),
             ";": (self._stack.reveal,    ()),
             "`": (self._string_as_mouse, ()),
-            "~": (self._trade_ret_main,  ()),
+            "NUL0": (self._trade_ret_main,  ()),
             "NUL1": (self._retstk.push, (self._stack.pop))
             "NUL2": (self._stack.push, (self._retstk.pop))
         }
 
-        self.funcdict["#"] = pprint.pprint(self.funcdict)
+        self.funcdict["#"] = (pprint.pprint, (self.funcdict))
 
     def execute(self, toklist):
+        """runs Mouse code as a list of single-char tokens"""
+
+        # uses '⏏' (EJECT SYMBOL) as a program terminator
+        # i'm sorry if you want to use '⏏' in your programs
+        # can't you find another, out of the million utf-8 code points?
+        toklist.append(chr(0x23cf))
+        self.toklist = toklist
+
         self.current_buf = ""
 
         self.iff_list,
@@ -792,20 +844,55 @@ class Mouse(object):
                         pass
                     else:
                         self._stack.log(nodeftupl, 2)
-        else:
-            return
+
+        self.idx = CaptainHook()
+        while True:
+            self.tok = self.toklist[self.idx.v]
+            self.charat = ord(self.tok)
+
+
+            if hex(self.charat) == 0x23cf:
+                if len(self._stack.inspect()) != 0:
+                    x = str(self._stack.pop())
+                    sys.stdout.write(x)
+                    del x
+                break
+
+            elif charat == 10:
+                self.line += 1
+                self.char =  1
+
+            # regular call to normally implemented function
+            if tok in self.funcdict:
+                self.func, self.arg = self.funcdict.get(tok, nop)
+                try:
+                    self.func(*self.arg)
+                except ValueError as error:
+                    raise BadInternalCallException(
+                        "junk call found, possible bug") from error
+
+            # if no jump was made, increment
+            # jmpd is magically set; see CaptainHook
+            if jmpd == False:
+                idx.v += 1
+
     # end def mouse.execute
 
     # function defs that need access to the runner
 
+    def _pushchar(self):
+        self._stack.push(ord(self.toklist[self.idx.v + 1]))
+        self.idx.v += 2 # skip next char
+
     def _writer(self):
-        x = self._stack.copy()
-        if isinstance(x, Macro):
-            self._runfunc()
-        elif isnone(x):
-            return
-        else:
-            self._stack.put()
+        self._stack.
+
+    def _next_inst(self, char):
+        '''def findnth(haystack, needle, n):
+            parts= haystack.split(needle, n+1)
+            if len(parts)<=n+1:
+                return -1
+            return len(haystack)-len(parts[-1])-len(needle)'''
 
     def _string_as_mouse(self):
         self.execute(self._stack.pop())
