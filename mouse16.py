@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 # stackoverflow.com questions that helped shape this project:
 #
 # Crafting impeccable unittests             -- stackoverflow.com/q/34701382
@@ -13,9 +12,40 @@
 #
 # How to Pythonically log nonfatal errors   -- stackoverflow.com/q/26357367
 #
+# A more Pythonic switch statement   -- stackoverflow.com/a/3828986/4532996
+#
+# Indexing dictionaries by value    -- stackoverflow.com/a/11632952/4532996
+#
 # and many more, to which I didn't contribute.
 
-import pprint, readline, os, sys, string, warnings
+__doc__ = """mouse16 - a concatenative stack-based language
+
+Usage: mouse16.py [ -nth ] [ -s | -v ] [ --lib=FILE ] [ SCRIPT... ]
+
+Options:
+
+    -n,        --dry        don't write anything to disk/network
+    -t,        --trace      show a detailed, realtime traceback
+    -lFILE,    --lib=FILE   load FILE as a library (WIP)
+    -s,        --silent     don't print errors or warnings
+    -v,        --verbose    log everything
+    -h,        --help       print this help & exit
+               --version    print the version & filename then exit
+
+Omission of all above arguments will result in reading from STDIN.
+
+Mandatory arguments to long options are mandatory for short options too.
+issues, source, contact: github.com/catb0t/mouse16
+"""
+
+__version__ = "0.1"
+
+import readline
+import os
+import sys
+import warnings
+from pprint import pprint
+from docopt import docopt
 
 # affects underflowerror behaviour and shebang interpretation
 _fromfile = False
@@ -26,36 +56,85 @@ filename = "stdin (typewriter)"
 # allows warnings that occur multiple times in a session to be visible
 warnings.simplefilter("always")
 
-# programmatical check if the parser's jumped or not -- used by SimpleIndex
+# programmatical check if the parser's jumped or not -- used by LiteralTable
 jmpd = False
 
+# only write to tty fds
+_dryrun = False
+
+# like python -m trace --trace <FILE>
+_tracert = False
+
+# print nothing except explicit writes
+_silent = False
+
+# print *everything*
+_verbose = False
+
+# over importing string
+DIGITS = "0123456789."
+
 def main():
-    global _fromfile, filename
-    if len(sys.argv) > 1:
+    global _fromfile, _filename, _dryrun
+
+    args = docopt(__doc__, version=__file__ + " " + __version__)
+
+    _dryrun  = args["-n"]
+    _tracert = args["-t"]
+    _silent  = args["-s"]
+    _verbose = args["-v"]
+
+    fnames = args["SCRIPT"]
+
+    if len(fnames) == 0:
+        interpret(args)
+
+    elif len(fnames) == 1:
         try:
-            os.stat(sys.argv[1])
+            os.stat(fnames[0])
         except IOError as error:
-            print(error, "\nstat: cannot stat '" + sys.argv[1] +
+            print(error,
+                "\nstat: cannot stat '" + fnames[0] +
                 "': no such file or directory, interpreting using stdio instead\n")
-            interpret()
-            exit(0)
+            interpret(args)
+            exit(2)
         else:
-            global _fromfile, filename
             _fromfile = True
-            filename = sys.argv[1]
+            _filename = fnames[0]
             try:
-                filio = open(filename, 'r')
+                filio = open(_filename, 'r')
                 prog = list(filio.read())
             finally:
                 filio.close()
             mouse.execute(prog)
             exit(0)
-    else:
-        interpret()
 
+    elif len(fnames) > 1:
+        for fname in fnames:
+            try:
+                os.stat(fname)
+            except IOError as error:
+                print(error,
+                    "\nstat: cannot stat '" + fname +
+                    "': no such file or directory")
+            else:
+                _fromfile = True
+                _filename = fname
+                try:
+                    filio = open(_filename, 'r')
+                    prog = list(filio.read())
+                finally:
+                    filio.close()
+                mouse.execute(prog)
 
-def interpret():
-    print("mouse16 interpreter (indev)\nsee Mouse.__init__() for syntax")
+def interpret(args):
+    print(
+        "flags:" + " ".join([
+            str(list(args.keys())[i]) + ":" + str(list(args.values())[i])
+            for i in range(len(list(args.keys())))
+        ])[:-2] + "\n", end=""
+    )
+    print("run \"{} --help\" in your shell for help on {}\n\n\tmouse16 interpreter (indev)".format(__file__, os.path.basename(__file__)))
     shellnum = 0
     while True:
         try:
@@ -581,7 +660,7 @@ class Stack(object):
         del x
 
     def emit(self, *args, **kwargs):
-        """( -- )
+        """( x -- )
         pops the top of the stack and prints that unicode char
         """
         x = self.pop()
@@ -603,7 +682,7 @@ class Stack(object):
         self.push(x)
 
     def getuntil(self):
-        """read stdin until the char on the stack is read"""
+        """read stdandard input until the char on the stack is read"""
         x = self.pop()
         if isnone(x):
             return
@@ -625,6 +704,7 @@ class Stack(object):
     # prints a "presentable" representation of the stack
 
     def reveal(self):
+        """prints the entire stack, pleasantly"""
         stack = self.inspect()
         peek = (
             str(stack)
@@ -637,8 +717,8 @@ class Stack(object):
 
 class CaptainHook(object):
     def __init__(self):
-
-        self.v = 0
+        """allows "hooking" index variable assignment"""
+        self.v = (0, None)
 
     def __eq__(self, o):
         if o == self.v:
@@ -655,13 +735,59 @@ class CaptainHook(object):
             return True
         return False
 
-    def __setattr__(self, n, x):
-        if isnum(x):
+    def __setattr__(self, n, info):
+        value, othercls = info
+        if isnum(value):
             global jmpd
-            print("mode of", n, "changed from", self.v, "to", x)
-            print("whether a jump had occurred changed from", jmpd, "to True")
+            if isnone(othercls):
+                super().__setattr__(n, value)
+                return
+            elif othercls.tabl.get(value) == True:
+                raise BadInternalCallException(
+                    "the parser tried to jump inside a string"
+                )
+            #print("mode of", n, "changed from", self.v, "to", value)
+            #print("whether a jump had occurred this cycle changed from", jmpd, "to True")
             jmpd = True
-            super().__setattr__(n, v)
+            super().__setattr__(n, value)
+
+        else:
+            raise TypeError(
+                "need an integer not" + str(type(value))
+            )
+
+class LiteralTable(object):
+    def __init__(self):
+        """container for the parser to keep track of all literals in the program
+        such that it doesn't try to jump to one."""
+        self.tabl  = {}
+        self.count = len(self.tabl)
+
+    def new(self, index, rangeof):
+        """adds an item to the string table
+        fails with an error if index exists"""
+        if not isinstance(rangeof, range):
+            raise TypeError("need a range value not {}".format(
+                    type(rangeof)
+                )
+            )
+
+        if index in self.tabl:
+            raise BadInternalCallException(
+                "cannot update string #{} at {} to table: string exists".format(
+                    str(index), repr(rangeof)
+                )
+            )
+        self.tabl[index] = rangeof
+
+    def get(self, index=0, byrange=0):
+        """boolean based on query of string table"""
+        print("querying string: at", str(index), repr(byrange))
+        return anyof(index in self.tabl, byrange in self.tabl.values())
+
+    def __del__(self):
+        """immutability!! yay!! doesn't affect garbage collection, though"""
+        print("nope.")
 
 
 class Macro(object):
@@ -671,21 +797,22 @@ class Macro(object):
 class Mouse(object):
 
     def __init__(self):
-        # main data stack
+        """a parser + runner class."""
+
         self._stack = Stack()
 
-        # return stack is optional secondary stack allowing for "return" values
-        # you can do math and stuff with the return stack, but you'll need to
-        # define your own operators to do that.
         self._retstk = Stack()
 
-        # func dict is functions; can be appended to!
+
         self.funcdict = {
-            chr(4): (nop,                ()),
-            "\n": (nop,                  ()),
-            "\r": (nop,                  ()),
-            " ": (nop,                   ()),
-            "_": (self._stack.neg,       ()),
+            "⏏": (nop,                   ()),
+            chr(4): (nop,                ()),  # make ^D silent
+            "\n": (nop,                  ()),  # newlines shouldn't do anything (unless defined)
+            "\r": (nop,                  ()),  # windows compatibilty
+            " ": (nop,                   ()),  # whitespace needs to be defined
+            "\"": (self._lit_string,     ()),  # quotes for strings
+            "\'": (self._lit_char,       ()),  # apostrophe pushes next charcode on stack
+            "_": (self._stack.neg,       ()),  # see method decl.
             "+": (self._stack.add,       ()),
             "-": (self._stack.sub,       ()),
             "*": (self._stack.mlt,       ()),
@@ -693,211 +820,193 @@ class Mouse(object):
             ">": (self._stack.gtr,       ()),
             "<": (self._stack.lss,       ()),
             "=": (self._stack.equ,       ()),
-            ",": (self._stack.emit,      ()),
-            "?": (self._stack.get,       ()),
-            "!": (self._writer,          ()),
-            "@": (self._stack.rot,       ()),
+            ",": (self._stack.emit,      ()),  # writes the charcode on the stack to stdout
+            "?": (self._stack.get,       ()),  # read stdin
+            "!": (self._writer,          ()),  # pop something and write it; if executable, call it
+            "@": (self._stack.rot,       ()),  # see method decl.
             "$": (self._stack.dup,       ()),
             "%": (self._stack.swap,      ()),
             "^": (self._stack.over,      ()),
             "&": (self._stack.roll,      ()),
-            ";": (self._stack.reveal,    ()),
-            "`": (self._string_as_mouse, ()),
-            "NUL0": (self._trade_ret_main,  ()),
-            "NUL1": (self._retstk.push, (self._stack.pop))
-            "NUL2": (self._stack.push, (self._retstk.pop))
+            ";": (self._stack.reveal,    ()),  # shows the contents of the stack without modifying
+            "`": (self._string_as_mouse, ()),  # execs a string as mouse in the same runner
+            "~": (self._trade_ret_main,  ()),
+            "None": (self._retstk.push, (self._stack.pop)),
+            "None": (self._stack.push, (self._retstk.pop)),
         }
 
-        self.funcdict["#"] = (pprint.pprint, (self.funcdict))
+        self.funcdict[""] = (self.print_bound, ()) # uses EOT for viewing the function dictionary
 
-    def execute(self, toklist):
-        """runs Mouse code as a list of single-char tokens"""
+    def print_bound(self):
+        """ ( -- )
+        print a list of currently defined operators and their functions."""
+        print(
+            "\na list of currently bound functions and the operators to which they are bound:\n\n",
+            "\n\n".join([
+                str(list(self.funcdict.keys())[i])
+                + "\t" + str(list(self.funcdict.values())[i][0].__name__)
+                + "\n\t" + str(list(self.funcdict.values())[i][0].__doc__)
+                for i in range(len(list(self.funcdict.keys())))
+                if str(list(self.funcdict.values())[i][0].__doc__) != "None"
+                and str(list(self.funcdict.keys())[i]) != "None"
+            ])
+        )
 
-        # uses '⏏' (EJECT SYMBOL) as a program terminator
-        # i'm sorry if you want to use '⏏' in your programs
-        # can't you find another, out of the million utf-8 code points?
-        toklist.append(chr(0x23cf))
-        self.toklist = toklist
+    def execute(self, proglist):
 
-        self.current_buf = ""
+        if type(proglist) not in (list, tuple):
+            raise BadInternalCallException("need a tokenised list not " + repr(type(proglist)))
 
-        self.iff_list,
-        self.whilestk = [], []
+        self.toklist = proglist
 
-        self.line,
-        self.char = 1, 1
+        self.idx       = CaptainHook()
+        self.lit_table = LiteralTable()
 
-        self.in_str,
-        self.in_quot,
-        self.nxt_ischr = False, False, False
+        self.line = 1
+        self.char = 1
 
-        for idx, tok in enumerate(toklist):
-
-            self.char += 1
-
-            # take the current line number, when in files.
-            # uses \n because it will (maybe?) also detect \r\n on Windows
-            if ord(tok) == 10:
-                self.line += 1
-                self.char =  1
-
-            # quotations have highest precedence
-            if self.in_quot == True:
-                if tok == "}":
-                    self.in_quot = False
-                    self._stack.push(self.quotstk)
-                else:
-                    self.quotstk.append(tok)
-
-            # pushes charcode of token
-            elif self.nxt_ischr == True:
-                    self._stack.push(ord(tok))
-                    self.nxt_ischr = False
-
-            # string recording
-            elif self.in_str == True:
-                if tok == "\"":
-                    if toklist[idx - 1] == "\\":
-                        self.current_buf = self.current_buf[:-1]
-                        self.current_buf += "\""
-                    else:
-                        self._stack.push("".join(self.current_buf))
-                        self.in_str = False
-                else:
-                    self.current_buf += tok
-
-            # *more* string recording.
-            elif tok == "\"":
-                self.in_str = True
-
-            # numbers
-            elif (
-                tok in string.digits + "."
-                and self.in_str  == False
-                and self.in_quot == False
-            ):
-                self.current_buf += tok
-                try:
-                    toklist[idx + 1]
-                except IndexError:
-                    try:
-                        if "." in self.current_buf:
-                            self.current_buf = float(self.current_buf)
-                        else:
-                            self.current_buf = int(self.current_buf)
-
-                        self._stack.push(self.current_buf)
-                        self.current_buf = ""
-                    except ValueError:
-                        self._stack.push(0.0)
-
-                else:
-                    if toklist[idx + 1] not in string.digits + ".":
-                        try:
-                            if "." in self.current_buf:
-                                self.current_buf = float(self.current_buf)
-                            else:
-                                self.current_buf = int(self.current_buf)
-
-                            self._stack.push(self.current_buf)
-                            self.current_buf = ""
-                        except ValueError:
-                            self._stack.push(0.0)
-
-            # quotations
-            elif tok == "{":
-                self.in_quot = True
-
-            # nxtchr is charcode to record
-            elif tok == "'":
-                self.nxt_ischr = True
-                try:
-                    toklist[idx + 1]
-                except IndexError:
-                    self._stack.log(
-                        "found EOF before character for literal at char " +
-                        str(char + 1) + ", line " + str(line) +
-                        " : file " + filename, 2
-                    )
-
-            elif tok in self.funcdict:
-                self.func, self.arg = self.funcdict.get(tok, nop)
-                try:
-                    self.func(*self.arg)
-                except ValueError as error:
-                    raise BadInternalCallException(
-                        "junk call found, possible bug") from error
-
-            else:
-                nodeftupl = ("at char " + str(self.char) + ", line " + str(self.line) +
-                    ": ignoring token '" + tok +
-                    "' which needs a definition before it can be used")
-                try:
-                    toklist[idx + 1]
-                except:
-                    if tok == ":":
-                        pass
-                    else:
-                        self._stack.log(nodeftupl, 2)
-                else:
-                    if toklist[idx + 1] == ":":
-                        pass
-                    else:
-                        self._stack.log(nodeftupl, 2)
-
-        self.idx = CaptainHook()
         while True:
-            self.tok = self.toklist[self.idx.v]
-            self.charat = ord(self.tok)
+            global jmpd
+            jmpd = False
 
+            try:
+                self.tok = self.toklist[self.idx.v]
 
-            if hex(self.charat) == 0x23cf:
-                if len(self._stack.inspect()) != 0:
-                    x = str(self._stack.pop())
-                    sys.stdout.write(x)
-                    del x
+            except IndexError:
+                if (
+                    len(self._stack.inspect()) > 0
+                    and _fromfile == True
+                ):
+                    self._stack.put()
                 break
 
-            elif charat == 10:
-                self.line += 1
-                self.char =  1
+            if self.tok in DIGITS:
+                self._lit_num()
+                continue
 
-            # regular call to normally implemented function
-            if tok in self.funcdict:
-                self.func, self.arg = self.funcdict.get(tok, nop)
+            elif self.tok in self.funcdict:
+                self.func, self.arg = self.funcdict.get(self.tok, nop)
                 try:
                     self.func(*self.arg)
                 except ValueError as error:
                     raise BadInternalCallException(
-                        "junk call found, possible bug") from error
+                        "junk call, possible bug found"
+                    ) from error
 
-            # if no jump was made, increment
-            # jmpd is magically set; see CaptainHook
+            else:
+                nodeftupl = (
+                    "at char " + str(self.char) + ", line " + str(self.line) +
+                    ": ignoring token '" + self.tok +
+                    "' which needs a definition before it can be used"
+                )
+                self._stack.log(nodeftupl, 2)
+
             if jmpd == False:
-                idx.v += 1
+                self.idx.v = (self.idx.v + 1, self.lit_table)
 
-    # end def mouse.execute
+    # end def Mouse.execute
 
-    # function defs that need access to the runner
+    def _lit_num(self):
+        """( -- x )
+        catenate each contiguous numeral into a number, then push that"""
+        import re
+        num_match = re.compile(r"^([.\d]+[.\d]+|[.\d])")
+        result = re.match(num_match, "".join(self.toklist[self.idx.v - 1:]))
 
-    def _pushchar(self):
-        self._stack.push(ord(self.toklist[self.idx.v + 1]))
-        self.idx.v += 2 # skip next char
+        rangeof = range(self.idx.v, self.idx.v + result.span()[1])
+        self.lit_table.new(self.idx.v, rangeof)
+
+        num = result.groups()[0]
+        num = float(num) if "." in num else int(num)
+
+        self._stack.push(num)
+
+        self.idx.v = (
+            self.idx.v + len(str(num)),
+            self.lit_table
+        )
+
+    def _lit_string(self):
+        """ ( "string" --  )
+        push everything between unescaped quotes to the stack as a list,
+        then update the parser's string table with the range."""
+        import re
+        # get the string delimiter from the function list
+        string_delim = list(self.funcdict.keys())[
+                list(self.funcdict.values())
+                .index((self._lit_string, ()))]
+
+        # get the string, using the possibly custom delimiter
+        expr = re.compile(
+            '{}([^{}\\\\]*(?:\\\\.[^{}\\\\]*)*){}'
+            .format(
+                string_delim,
+                string_delim,
+                string_delim,
+                string_delim,
+            )
+        )
+
+        # extract it
+        result = re.match(expr, "".join(self.toklist[self.idx.v - 1:]))
+
+        print(result)
+
+        # get its expanse
+        rangeof = range(self.idx.v, self.idx.v + result.span()[1])
+
+        # add its entry to the table or fail
+        self.lit_table.new(self.idx.v, rangeof)
+
+        self._stack.push(result)
+
+        # update the parser's index
+        self.idx.v = (
+            rangeof[-1],
+            self.lit_table
+        )
+
+    def _lit_char(self):
+        """ ( -- x )
+        push the charcode of the next char in the program,
+        then tell the parser to skip that char"""
+        try:
+            self._stack.push(
+                ord(self.toklist[
+                    self.idx.v + 1]))
+        except IndexError:
+            self._stack.log("found EOF before character for literal at char " +
+                str(self.char + 1) + ", line " + str(self.line) +
+                " : file " + filename, 2
+            )
+        else:
+            self.lit_table.new(self.idx.v, range(1))       # add string to list
+            self.idx.v = (self.idx.v + 2, self.lit_table)  # skip next char
 
     def _writer(self):
-        self._stack.
+        """ ( x -- )
+        write something from the stack to sys.stdout
+        (WIP)"""
+        self._stack.put()
 
-    def _next_inst(self, char):
-        '''def findnth(haystack, needle, n):
-            parts= haystack.split(needle, n+1)
-            if len(parts)<=n+1:
-                return -1
-            return len(haystack)-len(parts[-1])-len(needle)'''
+    def _next_inst(self, subs, atindex):
+        """return the next instance of a substring in a string"""
+        return(
+            "".join(self.toklist[atindex:])
+            .find(subs)
+            + atindex
+            if subs in self.toklist
+            else None
+        )
 
     def _string_as_mouse(self):
+        """ ( x -- )
+        pop a string off the stack and give it to the runner"""
         self.execute(self._stack.pop())
 
     def _trade_ret_main(self):
+        """ ( ? -- ? )
+        swap the contents of the main stack with the secondary stack"""
         oldstk = self._stack.clean()
         oldret = self._retstk.clean()
 
@@ -914,17 +1023,6 @@ class Mouse(object):
         """pops a quotation as a condition, another to execute if true,
         and another to execute if the condition is false"""
         pass
-
-    def _doquot(self):
-        """pops a quotation, and executes everything inside it"""
-        return
-        x = self._stack.pop()
-        if isnone(x):
-            return
-        x.__stack__ = [str(i) for i in x.__stack__]
-        self.execute(x)
-
-stack = Stack()
 
 mouse = Mouse()
 
