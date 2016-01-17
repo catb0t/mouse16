@@ -18,7 +18,7 @@
 #
 # and many more, to which I didn't contribute.
 
-__doc__ = """mouse16 - a concatenative stack-based language
+"""mouse16 - a concatenative stack-based language
 
 Usage: mouse16.py [ -nth ] [ -s | -v ] [ --lib=FILE ] [ SCRIPT... ]
 
@@ -36,55 +36,58 @@ Omission of all above arguments will result in reading from STDIN.
 
 Mandatory arguments to long options are mandatory for short options too.
 issues, source, contact: github.com/catb0t/mouse16
-"""
+"""  # type: str
 
-__version__ = "0.1"
+__version__ = "0.1"  # type: str
 
 import readline
 import os
 import sys
 import warnings
-from pprint import pprint
+import types
+import typing
+from typing import Any, Dict, List, Tuple, Union, Iterable, Sequence, Callable
 from docopt import docopt
 
 # affects underflowerror behaviour and shebang interpretation
-_fromfile = False
+_FROMFILE = False
 
 # logging messages use the filename
-filename = "stdin (typewriter)"
+_FILENAME = "stdin (typewriter)"
 
 # allows warnings that occur multiple times in a session to be visible
 warnings.simplefilter("always")
 
 # programmatical check if the parser's jumped or not -- used by LiteralTable
-jmpd = False
+_JMPD = False
 
 # only write to tty fds
-_dryrun = False
+_DRYRUN = False
 
 # like python -m trace --trace <FILE>
-_tracert = False
+_TRACERT = False
 
 # print nothing except explicit writes
-_silent = False
+_SILENT = False
 
 # print *everything*
-_verbose = False
+_VERBOSE = False
 
 # over importing string
-DIGITS = "0123456789."
+DIGITS = "0123456789."  # type: str
 
-def main():
-    global _fromfile, _filename, _dryrun
+def main() -> None:
+    """main entry point (hopefully)"""
+    global _FROMFILE, _FILENAME, _DRYRUN, _TRACERT, _SILENT, _VERBOSE
 
-    args = docopt(__doc__, version=__file__ + " " + __version__)
+    args = docopt.docopt(__doc__, version=__file__ + " " + __version__)  # type: Dict[str, Any]
 
-    _dryrun  = args["-n"]
-    _tracert = args["-t"]
-    _silent  = args["-s"]
-    _verbose = args["-v"]
+    _DRYRUN  = args["-n"]  # type: bool
+    _TRACERT = args["-t"]  # type: bool
+    _SILENT  = args["-s"]  # type: bool
+    _VERBOSE = args["-v"]  # type: bool
 
-    fnames = args["SCRIPT"]
+    fnames = args["SCRIPT"]  # type: str
 
     if len(fnames) == 0:
         interpret(args)
@@ -99,11 +102,11 @@ def main():
             interpret(args)
             exit(2)
         else:
-            _fromfile = True
-            _filename = fnames[0]
+            _FROMFILE = True
+            _FILENAME = fnames[0]  # type: str
             try:
-                filio = open(_filename, 'r')
-                prog = list(filio.read())
+                filio = open(_FILENAME, 'r')  # type: _io.TextIOWrapper
+                prog = list(filio.read())     # type: List[str]
             finally:
                 filio.close()
             mouse.execute(prog)
@@ -118,28 +121,35 @@ def main():
                     "\nstat: cannot stat '" + fname +
                     "': no such file or directory")
             else:
-                _fromfile = True
-                _filename = fname
+                _FROMFILE = True  # type: bool
+                _FILENAME = fname # type: str
                 try:
-                    filio = open(_filename, 'r')
-                    prog = list(filio.read())
+                    filio = open(_FILENAME, 'r')  # type: _io.TextIOWrapper
+                    prog = list(filio.read())     # type: List[str]
                 finally:
                     filio.close()
                 mouse.execute(prog)
 
-def interpret(args):
+def interpret(args: typing.Dict[str, typing.Any]) -> None:
+    """an interpreter: it reads stdin."""
     print(
         "flags:" + " ".join([
             str(list(args.keys())[i]) + ":" + str(list(args.values())[i])
             for i in range(len(list(args.keys())))
         ])[:-2] + "\n", end=""
     )
-    print("run \"{} --help\" in your shell for help on {}\n\n\tmouse16 interpreter (indev)".format(__file__, os.path.basename(__file__)))
-    shellnum = 0
+    print(
+        """run \"{} --help\" in your shell for help on {}
+
+        mouse16 interpreter (indev)""".format(
+            __file__, os.path.basename(__file__)
+        )
+    )
+    shellnum = 0  # type: int
     while True:
         try:
-            line = list(input("\nmouse  " + str(shellnum) + " )  "))
-        except KeyboardInterrupt as kbint:
+            line = list(input("\nmouse  " + str(shellnum) + " )  "))  # type: List[str]
+        except KeyboardInterrupt:
             print("\naborted")
         except EOFError:
             print("\nbye\n")
@@ -181,7 +191,10 @@ allof = lambda *args: all([i for i in args])
 anyof = lambda *args: any([i for i in args])
 
 
-def coer(obj, typ):
+def coer(
+        obj: object,
+        typ: str
+    ) -> typing.Any:
     if typ == "num":
         try:
             return float(obj)
@@ -191,12 +204,12 @@ def coer(obj, typ):
     elif isinstance(obj, typ):
         return obj
     try:
-        return typ(obj)
+        return exec(typ + "(" + str(obj) + ")")
     except (ValueError, TypeError, NameError) as error:
         raise BadInternalCallException("junk type coersion", error)
 
 
-def flt_part(num):
+def flt_part(num: float) -> typing.List[int]:
     num = str(num)
     num = num.split(".") if "." in num else [num, 0]
     return [int(num[0]), int(num[1])]
@@ -231,10 +244,14 @@ class BadInternalCallException(Exception):
 
 class Stack(object):
 
-    def __init__(self):
-        self.__stack__ = []
+    def __init__(self: object) -> None:
+        self.__stack__ = []  # type: List[Any]
 
-    def log(self, logstring, errno, stklvl=3):
+    def log(self,
+            logstring: str,
+            errno:     int,
+            stklvl:    int = 3
+        ) -> None:
         """logging interface for runtime warnings and exceptions"""
         logsdict = {
             0: Info,
@@ -244,11 +261,12 @@ class Stack(object):
             4: FatalException
         }
         warnings.warn(logstring, logsdict[errno], stacklevel=stklvl)
-        if errno == 4 and _fromfile == True:
+        if errno == 4 and _FROMFILE == True:
             raise SystemExit(4)
-        return
 
-    def error(self, errkey):
+    def error(self,
+            errkey: str
+        ) -> None:
         """interface for throwing fatal errors"""
         errors = {
             "zerodiv"       : "attempted to perform integer or float division or modulo by zero",
@@ -257,9 +275,12 @@ class Stack(object):
             "recursionerr"  : "call stack exceeded maximum recursion depth"
         }
         self.log(errors[errkey], 4, stklvl=5)
-        return
 
-    def nosuchop(self, operator, operands):
+
+    def nosuchop(self,
+            operator: str,
+            operands: typing.List[str]
+        ) -> None:
         """interface for logging TypeWarnings about interoperand relations"""
 
         operands = [str(type(i)).split("'")[1] for i in operands]
@@ -273,10 +294,13 @@ class Stack(object):
 
         self.log(message, 1, stklvl=5)
 
-    def inspect(self):
+    def inspect(self: object) -> typing.List[typing.Any]:
         return self.__stack__
 
-    def pop(self, idex=-1):
+    def pop(
+            self: object,
+            idex: int = (-1)
+        ) -> typing.Any:
         """( x -- )
         drop and return an item from the TOS"""
         try:
@@ -284,10 +308,14 @@ class Stack(object):
         except IndexError:
             self.error("stackunderflow")
 
-    def popn(self, n=2, idx=-1):
+    def popn(
+            self: object,
+            n:    int = 2,
+            idx:  int = (-1)
+        ) -> typing.Tuple[typing.Any]:
         """( z y x -- )
         drops and returns n items from the stack"""
-        x = []
+        x = []  # type: List[Any]
         for i in range(n):
                     y = self.pop(idex=idx)
                     if not isnone(y):
@@ -296,25 +324,28 @@ class Stack(object):
                         break
         if len(x) == n:
             return tuple(x)
-        return (None, None)
 
-    def push(self, x):
+    def push(
+            self: object,
+            x:    typing.Any
+        ) -> None:
         """( -- x )
         push an item to the stack"""
         try:
             self.__stack__.append(x)
         except (MemoryError, OverflowError):
             self.error("stackoverflow")
-        return
 
-    def pushn(self, x):
+    def pushn(
+            self: object,
+            x:    typing.List[typing.Any]
+        ) -> None:
         """( -- y x )
         push n items to the stack"""
-        for idx, obj in enumerate(x):
+        for _, obj in enumerate(x):
             self.push(obj)
-        return
 
-    def copy(self):
+    def copy(self: object) -> typing.Any:
         """( y x -- y x x )
         return an item from the the stack without dropping"""
         try:
@@ -322,15 +353,22 @@ class Stack(object):
         except IndexError:
             self.error("stackunderflow")
 
-    def copyn(self, n=2):
+    def copyn(
+            self: object,
+            n:    int = 2
+        ) -> typing.List[typing.Any]:
         """( z y x -- z y x z y x )
         return n last items from the stack without dropping"""
-        result = self.__stack__[signflip(n):]
+        result = self.__stack__[signflip(n):]  # type: typing.List[typing.Any]
         if result == []:
             self.error("stackunderflow")
         return result
 
-    def insert(self, item, idex):
+    def insert(
+            self: object,
+            item: typing.Any,
+            idex: int
+        ) -> None:
         """( z y x -- z b y x )
         add an item to the stack at the given index"""
         try:
@@ -338,15 +376,22 @@ class Stack(object):
         except LookupError as error:
             raise BadInternalCallException("junk list index") from error
 
-    def insertn(self, items, lidex):
+    def insertn(
+            self:  object,
+            items: typing.List[typing.Any],
+            lidex: int
+        ) -> None:
         """( z y x -- z b y x )
         add a list of items to the stack at the given index"""
         iter(items)
-        for idx, obj in enumerate(items):
+        for _, obj in enumerate(items):
             self.insert(lidex, obj)
             lidex += 1
 
-    def remove(self, n):
+    def remove(
+            self: object,
+            n:    int
+        ) -> None:
         """( x -- )
         remove the nth stack item"""
         try:
@@ -355,12 +400,15 @@ class Stack(object):
             raise BadInternalCallException("junk list index") from error
         return
 
-    def index(self, n):
+    def index(
+            self: object,
+            n:    int
+        ) -> typing.List[typing.Any]:
         """( -- )
         return the nth-last stack item"""
         return self.__stack__[signflip(n)]
 
-    def clean(self):
+    def clean(self: object) -> typing.List[typing.Any]:
         """empty the stack, and return the old stack"""
         stk = self.inspect()[:]
         self.__stack__.clear()
@@ -368,7 +416,7 @@ class Stack(object):
 
     # begin math operators
 
-    def add(self):
+    def add(self: object) -> None:
         """( y x -- x+y )
         performs binary addition
         if x and y are strings, concatenates strings."""
@@ -391,9 +439,8 @@ class Stack(object):
             self.push(x + y)
         else:
             self.nosuchop("add", [x, y])
-        return
 
-    def sub(self):
+    def sub(self: object) -> None:
         """( z y x -- z x-y )
         subtract x from y: perform binary negation
         if x and y are strings,
@@ -436,7 +483,7 @@ class Stack(object):
             self.nosuchop("sub", [x, y])
         return
 
-    def mlt(self):
+    def mlt(self: object) -> None:
         """( y x -- x*y )
         multiply x by y: perform binary multiplication
         if one operand is a string and the other is an integer,
@@ -456,9 +503,9 @@ class Stack(object):
             self.push(x * y)
         else:
             self.nosuchop("mlt", [x, y])
-        return
 
-    def dmd(self):
+
+    def dmd(self: object) -> None:
         """( y x --  x/y x%y )
         push x div y, then push x modulo y: perform binary div, then binary mod
         this operator is not yet defined for strings"""
@@ -473,9 +520,9 @@ class Stack(object):
                 self.error("zerodiv")
         else:
             self.nosuchop("dmd", [x, y])
-        return
 
-    def flr(self):
+
+    def flr(self: object) -> None:
         """( y x -- x//y )
         divide x by y, flooring the result: perform binary floor division
         this operator is not yet defined for strings."""
@@ -490,9 +537,8 @@ class Stack(object):
                 self.error("zerodiv")
         else:
             self.nosuchop("flr", [x, y])
-        return
 
-    def lss(self):
+    def lss(self: object) -> None:
         """( y x -- x<y? )
         push 1 if x is less than y: perform binary ordering"""
         y, x = self.popn()
@@ -505,7 +551,7 @@ class Stack(object):
             self.nosuchop("lss", [x, y])
         return
 
-    def gtr(self):
+    def gtr(self: object) -> None:
         """( y x -- x>y? )
         push 1 if x is greater than y: perform binary ordering"""
         y, x = self.popn()
@@ -518,7 +564,7 @@ class Stack(object):
             self.nosuchop("gtr", [x, y])
         return
 
-    def equ(self):
+    def equ(self: object) -> None:
         """( y x -- x=y? )
         push 1 if x is equal to y: perform equality comparison"""
         y, x = self.popn()
@@ -551,7 +597,7 @@ class Stack(object):
         else:
             self.nosuchop("equ", [x, y])
 
-    def neg(self):
+    def neg(self: object) -> None:
         """( x -- -x )
         push the inverse sign of x
         on strings, reverses the string"""
@@ -566,24 +612,27 @@ class Stack(object):
     # here ends math and begins actual stack operations
     # all of these should be type-agnostic
 
-    def dup(self):
+    def dup(self: object) -> None:
         """( y x -- y x x )
         push a copy of the TOS"""
         self.push(self.copy())
 
-    def dupn(self, n=2):
+    def dupn(
+            self: object,
+            n:    int = 2
+        ) -> None:
         """( z y x -- z y x y x )
         copy n items from the TOS; push them preserving order"""
         x = self.copyn(n)
         for i in x:
             self.push(i)
 
-    def swap(self):
+    def swap(self: object) -> None:
         """( y x -- x y )
         swap the top two items on the stack"""
         self.pushn(self.popn())
 
-    def rot(self):
+    def rot(self: object) -> None:
         """( z y x w -- z w y x )
         rotates only top three items up"""
         x = self.copyn(3)
@@ -593,64 +642,77 @@ class Stack(object):
         for i in x:
             self.push(i)
 
-    def urot(self):
+    def urot(self: object) -> None:
         """( z y x w -- z x w y )
         rotates only top three items down"""
-        self.insert(self.pop(), -3)
+        self.insert(self.pop(), -2)
 
-    def roll(self):
+    def roll(self: object) -> None:
         """( z y x -- y x z )
         roll the stack up"""
         self.push(self.pop(0))
 
-    def rolln(self, n=2):
+    def rolln(
+            self: object,
+            n:    int = 2
+        ) -> None:
         """( z y x -- x z y )
         roll the stack up by n"""
         for i in range(n):
             self.roll()
 
-    def uroll(self):
+    def uroll(self: object) -> None:
         """( z y x -- x z y )
         roll the stack down"""
         self.insert(self.pop(), 0)
 
-    def urolln(self, n=2):
+    def urolln(
+            self: object,
+            n:    int = 2
+        ) -> None:
         """( z y x -- y x z )
         roll the stack down by n"""
         for i in range(n):
             self.uroll()
 
-    def drop(self):
+    def drop(self: object) -> None:
         """( y x -- y )
         silently drops from the stack"""
         self.pop()
 
-    def dropn(self, n=2):
+    def dropn(
+            self: object,
+            n:    int = 2
+        ) -> None:
         """( y x -- )
         silently drops n items from the stack"""
         self.popn(n)
 
-    def over(self):
+    def over(self: object) -> None:
         """( z y x -- z y x y )
         copies second-to-top item to TOS"""
         self.push(self.index(2))
 
-    def nip(self):
+    def nip(self: object) -> None:
         """( y x -- x )
         silently drops second-to-top item"""
-        self.pop(self.index(2))
+        self.pop(-2)
 
-    def tuck(self):
+    def tuck(self: object) -> None:
         """( y x -- x y x )
         copies TOS behind second-to-top"""
         self.insert(self.copy(), -2)
 
     # i/o
 
-    def put(self, *args, **kwargs):
+    def put(
+            self:   object,
+            *args:  typing.List[typing.Any],
+            **kwds: typing.Dict[str, typing.Any]
+        ) -> None:
         """( x -- )
         pops the top of the stack and prints/executes"""
-        x = self.copy()
+        x = self.copy()  # type: Union[Any, Any]
         if isnone(x):
             return
         else:
@@ -659,11 +721,14 @@ class Stack(object):
             del length
         del x
 
-    def emit(self, *args, **kwargs):
+    def emit(
+            self:   object,
+            *args:  typing.List[typing.Any],
+            **kwds: typing.Dict[str, typing.Any]
+        ) -> None:
         """( x -- )
-        pops the top of the stack and prints that unicode char
-        """
-        x = self.pop()
+        pops the top of the stack and prints that unicode char"""
+        x = self.pop()  # type: Union[str, int]
         try:
             x = int(x)
         except TypeError:
@@ -676,12 +741,12 @@ class Stack(object):
             del length
         del x
 
-    def get(self):
+    def get(self: object) -> None:
         """push a string from stdin until a newline is found"""
         x = input()
         self.push(x)
 
-    def getuntil(self):
+    def getuntil(self: object) -> None:
         """read stdandard input until the char on the stack is read"""
         x = self.pop()
         if isnone(x):
@@ -689,6 +754,7 @@ class Stack(object):
         toread = chr(x)
         buf = []
         seen_char = False
+        nxt_end = False
         while True:
             char = sys.stdin.read(1)
             if not char:
@@ -703,7 +769,7 @@ class Stack(object):
 
     # prints a "presentable" representation of the stack
 
-    def reveal(self):
+    def reveal(self: object) -> None:
         """prints the entire stack, pleasantly"""
         stack = self.inspect()
         peek = (
@@ -716,29 +782,42 @@ class Stack(object):
 
 
 class CaptainHook(object):
-    def __init__(self):
+    def __init__(self: object) -> None:
         """allows "hooking" index variable assignment"""
-        self.v = (0, None)
+        self.v = (0, None)  # type: Tuple[int, LiteralTable]
 
-    def __eq__(self, o):
+    def __eq__(
+            self: object,
+            o:    object
+        ) -> bool:
         if o == self.v:
             return True
         return False
 
-    def __gt__(self, o):
+    def __gt__(
+            self: object,
+            o:    object
+        ) -> bool:
         if o > self.v:
             return True
         return False
 
-    def __lt__(self, o):
+    def __lt__(
+            self: object,
+            o:    object
+        ) -> bool:
         if o < self.v:
             return True
         return False
 
-    def __setattr__(self, n, info):
+    def __setattr__(
+            self: object,
+            n:    object,
+            info: object
+        ) -> None:
         value, othercls = info
         if isnum(value):
-            global jmpd
+            global _JMPD
             if isnone(othercls):
                 super().__setattr__(n, value)
                 return
@@ -747,8 +826,8 @@ class CaptainHook(object):
                     "the parser tried to jump inside a string"
                 )
             #print("mode of", n, "changed from", self.v, "to", value)
-            #print("whether a jump had occurred this cycle changed from", jmpd, "to True")
-            jmpd = True
+            #print("whether a jump had occurred this cycle changed from", _JMPD, "to True")
+            _JMPD = True
             super().__setattr__(n, value)
 
         else:
@@ -757,13 +836,17 @@ class CaptainHook(object):
             )
 
 class LiteralTable(object):
-    def __init__(self):
+    def __init__(self: object) -> None:
         """container for the parser to keep track of all literals in the program
         such that it doesn't try to jump to one."""
-        self.tabl  = {}
-        self.count = len(self.tabl)
+        self.tabl  = {}              # type: Dict[int, object]
+        self.count = len(self.tabl)  # type: int
 
-    def new(self, index, rangeof):
+    def new(
+            self:    object,
+            index:   int,
+            rangeof: range
+        ) -> None:
         """adds an item to the string table
         fails with an error if index exists"""
         if not isinstance(rangeof, range):
@@ -778,17 +861,20 @@ class LiteralTable(object):
                     str(index), repr(rangeof)
                 )
             )
-        self.tabl[index] = rangeof
+        self.tabl[index] = rangeof  # type: range
 
-    def get(self, index=0, byrange=0):
+    def get(
+            self:    object,
+            index:   int,
+            byrange: int
+        ) -> bool:
         """boolean based on query of string table"""
         print("querying string: at", str(index), repr(byrange))
         return anyof(index in self.tabl, byrange in self.tabl.values())
 
-    def __del__(self):
+    def __del__(self: object) -> None:
         """immutability!! yay!! doesn't affect garbage collection, though"""
-        print("nope.")
-
+        pass
 
 class Macro(object):
     pass
@@ -796,7 +882,7 @@ class Macro(object):
 
 class Mouse(object):
 
-    def __init__(self):
+    def __init__(self: object) -> None:
         """a parser + runner class."""
 
         self._stack = Stack()
@@ -807,11 +893,11 @@ class Mouse(object):
         self.funcdict = {
             "⏏": (nop,                   ()),
             chr(4): (nop,                ()),  # make ^D silent
-            "\n": (nop,                  ()),  # newlines shouldn't do anything (unless defined)
+            "\n": (nop,                  ()),
             "\r": (nop,                  ()),  # windows compatibilty
             " ": (nop,                   ()),  # whitespace needs to be defined
             "\"": (self._lit_string,     ()),  # quotes for strings
-            "\'": (self._lit_char,       ()),  # apostrophe pushes next charcode on stack
+            "\'": (self._lit_char,       ()),  # apostrophe pushes nxt charcode
             "_": (self._stack.neg,       ()),  # see method decl.
             "+": (self._stack.add,       ()),
             "-": (self._stack.sub,       ()),
@@ -820,28 +906,28 @@ class Mouse(object):
             ">": (self._stack.gtr,       ()),
             "<": (self._stack.lss,       ()),
             "=": (self._stack.equ,       ()),
-            ",": (self._stack.emit,      ()),  # writes the charcode on the stack to stdout
+            ",": (self._stack.emit,      ()),  # write charcode on stack
             "?": (self._stack.get,       ()),  # read stdin
-            "!": (self._writer,          ()),  # pop something and write it; if executable, call it
+            "!": (self._writer,          ()),  # pop something and "do" it
             "@": (self._stack.rot,       ()),  # see method decl.
             "$": (self._stack.dup,       ()),
             "%": (self._stack.swap,      ()),
             "^": (self._stack.over,      ()),
             "&": (self._stack.roll,      ()),
-            ";": (self._stack.reveal,    ()),  # shows the contents of the stack without modifying
-            "`": (self._string_as_mouse, ()),  # execs a string as mouse in the same runner
+            ";": (self._stack.reveal,    ()),  # show the content of stack
+            "`": (self._string_as_mouse, ()),  # execs a string as mouse
             "~": (self._trade_ret_main,  ()),
             "None": (self._retstk.push, (self._stack.pop)),
             "None": (self._stack.push, (self._retstk.pop)),
-        }
+        } # type: Dict[str, Tuple[object, object]]
 
         self.funcdict[""] = (self.print_bound, ()) # uses EOT for viewing the function dictionary
 
-    def print_bound(self):
+    def print_bound(self: object) -> None:
         """ ( -- )
         print a list of currently defined operators and their functions."""
         print(
-            "\na list of currently bound functions and the operators to which they are bound:\n\n",
+            "\na list of currently bound functions and operators:\n\n",
             "\n\n".join([
                 str(list(self.funcdict.keys())[i])
                 + "\t" + str(list(self.funcdict.values())[i][0].__name__)
@@ -852,12 +938,13 @@ class Mouse(object):
             ])
         )
 
-    def execute(self, proglist):
+    def execute(
+            self: object,
+            proglist: typing.List[str]
+        ) -> None:
+        """parse and JIT run mouse code"""
 
-        if type(proglist) not in (list, tuple):
-            raise BadInternalCallException("need a tokenised list not " + repr(type(proglist)))
-
-        self.toklist = proglist
+        self.toklist = proglist          # type: List[str]
 
         self.idx       = CaptainHook()
         self.lit_table = LiteralTable()
@@ -866,8 +953,8 @@ class Mouse(object):
         self.char = 1
 
         while True:
-            global jmpd
-            jmpd = False
+            global _JMPD
+            _JMPD = False
 
             try:
                 self.tok = self.toklist[self.idx.v]
@@ -875,12 +962,13 @@ class Mouse(object):
             except IndexError:
                 if (
                     len(self._stack.inspect()) > 0
-                    and _fromfile == True
+                    and _FROMFILE == True
                 ):
                     self._stack.put()
                 break
 
             if self.tok in DIGITS:
+                print("found a digit at", str(self.idx.v))
                 self._lit_num()
                 continue
 
@@ -896,27 +984,27 @@ class Mouse(object):
             else:
                 nodeftupl = (
                     "at char " + str(self.char) + ", line " + str(self.line) +
-                    ": ignoring token '" + self.tok +
+                    "of file " + _FILENAME + ": ignoring token '" + self.tok +
                     "' which needs a definition before it can be used"
                 )
                 self._stack.log(nodeftupl, 2)
 
-            if jmpd == False:
+            if _JMPD == False:
                 self.idx.v = (self.idx.v + 1, self.lit_table)
 
     # end def Mouse.execute
 
-    def _lit_num(self):
+    def _lit_num(self: object) -> None:
         """( -- x )
         catenate each contiguous numeral into a number, then push that"""
         import re
         num_match = re.compile(r"^([.\d]+[.\d]+|[.\d])")
-        result = re.match(num_match, "".join(self.toklist[self.idx.v - 1:]))
+        result = re.match(num_match, "".join(self.toklist[self.idx.v - 1:]))  # type: object
 
         rangeof = range(self.idx.v, self.idx.v + result.span()[1])
         self.lit_table.new(self.idx.v, rangeof)
 
-        num = result.groups()[0]
+        num = result.groups()[0]  # type: object
         num = float(num) if "." in num else int(num)
 
         self._stack.push(num)
@@ -926,7 +1014,7 @@ class Mouse(object):
             self.lit_table
         )
 
-    def _lit_string(self):
+    def _lit_string(self: object) -> None:
         """ ( "string" --  )
         push everything between unescaped quotes to the stack as a list,
         then update the parser's string table with the range."""
@@ -938,7 +1026,7 @@ class Mouse(object):
 
         # get the string, using the possibly custom delimiter
         expr = re.compile(
-            '{}([^{}\\\\]*(?:\\\\.[^{}\\\\]*)*){}'
+            r'{}([^{}\\]*(?:\\.[^{}\\]*)*){}'
             .format(
                 string_delim,
                 string_delim,
@@ -966,7 +1054,7 @@ class Mouse(object):
             self.lit_table
         )
 
-    def _lit_char(self):
+    def _lit_char(self: object) -> None:
         """ ( -- x )
         push the charcode of the next char in the program,
         then tell the parser to skip that char"""
@@ -975,21 +1063,26 @@ class Mouse(object):
                 ord(self.toklist[
                     self.idx.v + 1]))
         except IndexError:
-            self._stack.log("found EOF before character for literal at char " +
+            self._stack.log(
+                "found EOF before character for literal at char " +
                 str(self.char + 1) + ", line " + str(self.line) +
-                " : file " + filename, 2
+                " : file " + _FILENAME, 2
             )
         else:
             self.lit_table.new(self.idx.v, range(1))       # add string to list
             self.idx.v = (self.idx.v + 2, self.lit_table)  # skip next char
 
-    def _writer(self):
+    def _writer(self: object) -> None:
         """ ( x -- )
         write something from the stack to sys.stdout
         (WIP)"""
         self._stack.put()
 
-    def _next_inst(self, subs, atindex):
+    def _next_inst(
+            self: object,
+            subs: str,
+            atindex: int
+        ) -> int:
         """return the next instance of a substring in a string"""
         return(
             "".join(self.toklist[atindex:])
@@ -999,32 +1092,31 @@ class Mouse(object):
             else None
         )
 
-    def _string_as_mouse(self):
+    def _string_as_mouse(self: object) -> None:
         """ ( x -- )
         pop a string off the stack and give it to the runner"""
         self.execute(self._stack.pop())
 
-    def _trade_ret_main(self):
+    def _trade_ret_main(self: object) -> None:
         """ ( ? -- ? )
         swap the contents of the main stack with the secondary stack"""
-        oldstk = self._stack.clean()
-        oldret = self._retstk.clean()
+        oldstk = self._stack.clean()   # type: List[Any]
+        oldret = self._retstk.clean()  # type: List[Any]
 
         self._stack.__stack__  = oldret
         self._retstk.__stack__ = oldstk
 
     # control structs need access to the runner so not defable by Stack()
 
-    def _dofor(self):
+    def _dofor(self: object) -> None:
         """do something while something else is true"""
         pass
 
-    def _simple_cond(self):
+    def _simple_cond(self: object) -> None:
         """pops a quotation as a condition, another to execute if true,
         and another to execute if the condition is false"""
         pass
 
-mouse = Mouse()
-
 if __name__ == "__main__":
+    mouse = Mouse()
     main()
