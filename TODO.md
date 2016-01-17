@@ -1,7 +1,7 @@
 stuff that needs to be done
 ===========================
 
-- [ ] strings!
+- [x] strings! (kinda?)
 
 - [ ] control structs
 
