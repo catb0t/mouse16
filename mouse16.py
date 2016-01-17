@@ -968,7 +968,6 @@ class Mouse(object):
                 break
 
             if self.tok in DIGITS:
-                print("found a digit at", str(self.idx.v))
                 self._lit_num()
                 continue
 
@@ -999,8 +998,7 @@ class Mouse(object):
         catenate each contiguous numeral into a number, then push that"""
         import re
         num_match = re.compile(r"^([.\d]+[.\d]+|[.\d])")
-        result = re.match(num_match, "".join(self.toklist[self.idx.v - 1:]))  # type: object
-
+        result = re.match(num_match, "".join(self.toklist[self.idx.v:]))  # type: object
         rangeof = range(self.idx.v, self.idx.v + result.span()[1])
         self.lit_table.new(self.idx.v, rangeof)
 
