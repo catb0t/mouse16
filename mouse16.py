@@ -1054,7 +1054,7 @@ class Mouse(object):
 
         # update the parser's index
         self.idx.v = (
-            self.idx.v + len(repr(result)) + 1,
+            self.idx.v + len(repr(result.groups()[0])),
             self.lit_table
         )
 

@@ -1,8 +1,6 @@
 stuff that needs to be done
 ===========================
 
-- [x] strings! (kinda?)
-
 - [ ] control structs
 
 - [ ] data structs
@@ -22,3 +20,12 @@ stuff that needs to be done
 - [ ] a standard library
 
 - [ ] rewrite README to match implementation
+
+---
+
+done stuff
+==========
+
+- [x] numbers!
+
+- [x] strings!
