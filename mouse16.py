@@ -36,9 +36,9 @@ Omission of all above arguments will result in reading from STDIN.
 
 Mandatory arguments to long options are mandatory for short options too.
 issues, source, contact: github.com/catb0t/mouse16
-"""  # type: str
+"""
 
-__version__ = "0.1"  # type: str
+__version__ = "0.1"
 
 import readline
 import os
@@ -74,7 +74,7 @@ _SILENT = False
 _VERBOSE = False
 
 # over importing string
-DIGITS = "0123456789."  # type: str
+DIGITS = frozenset("0123456789.")
 
 def main() -> None:
     """main entry point (hopefully)"""
@@ -112,6 +112,7 @@ def main() -> None:
             mouse.execute(prog)
             exit(0)
 
+    # open multiple files at once
     elif len(fnames) > 1:
         for fname in fnames:
             try:
@@ -141,7 +142,7 @@ def interpret(args: typing.Dict[str, typing.Any]) -> None:
     print(
         """run \"{} --help\" in your shell for help on {}
 
-        mouse16 interpreter (indev)""".format(
+        mouse16 interpreter""".format(
             __file__, os.path.basename(__file__)
         )
     )
@@ -324,6 +325,7 @@ class Stack(object):
                         break
         if len(x) == n:
             return tuple(x)
+        return (None, None)
 
     def push(
             self: object,
@@ -926,8 +928,9 @@ class Mouse(object):
     def print_bound(self: object) -> None:
         """ ( -- )
         print a list of currently defined operators and their functions."""
-        print(
-            "\na list of currently bound functions and operators:\n\n",
+        import pydoc
+        pydoc.pager(
+            "\na list of currently bound functions and operators:\n\n" +
             "\n\n".join([
                 str(list(self.funcdict.keys())[i])
                 + "\t" + str(list(self.funcdict.values())[i][0].__name__)
@@ -1003,7 +1006,10 @@ class Mouse(object):
         self.lit_table.new(self.idx.v, rangeof)
 
         num = result.groups()[0]  # type: object
-        num = float(num) if "." in num else int(num)
+        try:
+            num = float(num) if "." in num else int(num)
+        except ValueError:
+            self._stack.push(0.0)
 
         self._stack.push(num)
 
@@ -1018,11 +1024,13 @@ class Mouse(object):
         then update the parser's string table with the range."""
         import re
         # get the string delimiter from the function list
+        # using the function whose fingerprint we know
+        # to essentially reverse-engineer the function dict
         string_delim = list(self.funcdict.keys())[
                 list(self.funcdict.values())
                 .index((self._lit_string, ()))]
 
-        # get the string, using the possibly custom delimiter
+        # get the string, using the possibly custom delimiter interpolated
         expr = re.compile(
             r'{}([^{}\\]*(?:\\.[^{}\\]*)*){}'
             .format(
@@ -1034,9 +1042,7 @@ class Mouse(object):
         )
 
         # extract it
-        result = re.match(expr, "".join(self.toklist[self.idx.v - 1:]))
-
-        print(result)
+        result = re.match(expr, "".join(self.toklist[self.idx.v:]))
 
         # get its expanse
         rangeof = range(self.idx.v, self.idx.v + result.span()[1])
@@ -1044,11 +1050,11 @@ class Mouse(object):
         # add its entry to the table or fail
         self.lit_table.new(self.idx.v, rangeof)
 
-        self._stack.push(result)
+        self._stack.push(result.groups()[0])
 
         # update the parser's index
         self.idx.v = (
-            rangeof[-1],
+            self.idx.v + len(repr(result)) + 1,
             self.lit_table
         )
 
