@@ -1166,7 +1166,6 @@ class Mouse(object):
             match: str
         ) -> int:
         """walk the program in reverse, trying to find a matching brace"""
-
         depth = 0
         prog  = reversed(self.toklist[:self.idx.v])
         if len(match) != 1 or match not in "([{}])":

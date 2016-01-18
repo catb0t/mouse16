@@ -16,7 +16,7 @@ This doc will try to explain all the aspects and features of the language in a r
 
 Most of the importable module is fairly well documented, and Python is quite an easy language to read, so if in doubt, refer to the source.
 
-**That being said, until I make a release / implement control structs and functions, this README will be mostly out-of-date.**
+**That being said, until I make a release / implement fully control structs and functions, this README will be mostly out-of-date. Thus, the comments and docstrings in the code are the docs for now.**
 
 ---
 
