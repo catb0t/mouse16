@@ -921,7 +921,7 @@ class Mouse(object):
             "{": (self._mk_quot,         ()),  # begin quotation
             "}": (self._mk_touq,         ()),  # end
             #goto is a Temporary Replacement for for(;;) and while
-            "\\":(self._goto(),          ()),
+            "\\":(self._goto,            ()),
             #misc/other operators
             "_": (self._stack.neg,       ()),  # see method decl.
             "+": (self._stack.add,       ()),
