@@ -16,6 +16,8 @@ This doc will try to explain all the aspects and features of the language in a r
 
 Most of the importable module is fairly well documented, and Python is quite an easy language to read, so if in doubt, refer to the source.
 
+**That being said, until I make a release / implement control structs and functions, this README will be mostly out-of-date.**
+
 ---
 
 ## about the language
@@ -183,14 +185,3 @@ Note that while all of the following are implemented in the Python interpeter, n
 
 * `:`, if a `{}` quotation and a valid identifier are on the stack, will assign that quotation to be pushed whenever that identifier is used.
  * if preceded by a bare numeric literal and valid identifier that identifier will push that number.
-
-```
-ROFL:ROFL:LOL:ROFL:ROFL
-           |
-  L   /---------
- LOL===       []\
-  L    \         \
-        \_________\
-           |    |
-       \-----------/
-```
