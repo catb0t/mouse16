@@ -920,7 +920,9 @@ class Mouse(object):
             #quotations: not quite the same
             "{": (self._mk_quot,         ()),  # begin quotation
             "}": (self._mk_touq,         ()),  # end
-            #misc operators
+            #goto is a Temporary Replacement for for(;;) and while
+            "\\":(self._goto(),          ()),
+            #misc/other operators
             "_": (self._stack.neg,       ()),  # see method decl.
             "+": (self._stack.add,       ()),
             "-": (self._stack.sub,       ()),
