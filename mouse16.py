@@ -142,7 +142,7 @@ def interpret(args: typing.Dict[str, typing.Any]) -> None:
         "flags:" + " ".join([
             str(list(args.keys())[i]) + ":" + str(list(args.values())[i])
             for i in range(len(list(args.keys())))
-        ])[:-2] + "\n", end=""
+        ]) + "\n", end=""
     )
     print(
         """run \"{} --help\" in your shell for help on {}
@@ -151,12 +151,12 @@ def interpret(args: typing.Dict[str, typing.Any]) -> None:
             __file__, os.path.basename(__file__)
         )
     )
-    shellnum = 0  # type: int
+    shellnum = 0
     while True:
         try:
             line = list(input("\nmouse  " + str(shellnum) + " )  "))  # type: List[str]
         except KeyboardInterrupt:
-            print("\naborted")
+            print("\naborted (EOF to exit)")
         except EOFError:
             print("\nbye\n")
             exit(0)
@@ -220,31 +220,48 @@ def flt_part(num: float) -> typing.List[int]:
     num = num.split(".") if "." in num else [num, 0]
     return [int(num[0]), int(num[1])]
 
-
 # these are placeholders, don't mind them
+# they'll be obsoleted when the logger module gets implemented
 
 
 class Info(Warning):
+    """
+    placeholder class for displaying messages to the user
+    """
     pass
 
 
 class TypeWarning(Warning):
+    """
+    for warning about incompatible or ambiguous type interactions
+    """
     pass
 
 
 class ParseWarning(Warning):
+    """
+    warnings about syntax errors like EOL before end of literal
+    """
     pass
 
 
 class RuntimeWarning(Warning):
+    """warnings that things may not work properly due to certain circumstances
+    """
     pass
 
 
 class FatalException(Warning):
+    """
+    fatal errors that make continuing to run impossible
+    """
     pass
 
 
 class BadInternalCallException(Exception):
+    """
+    actually-fatal exceptions about probable bugs in Mouse/this program
+    """
     pass
 
 
@@ -267,7 +284,7 @@ class Stack(object):
             4: FatalException
         }
         warnings.warn(logstring, logsdict[errno], stacklevel=stklvl)
-        if errno == 4 and _FROMFILE == True:
+        if errno == 4 and _FROMFILE:
             raise SystemExit(4)
 
     def error(
@@ -324,12 +341,12 @@ class Stack(object):
         """( z y x -- )
         drops and returns n items from the stack"""
         x = []  # type: List[Any]
-        for i in range(n):
-                    y = self.pop(idex=idx)
-                    if not isnone(y):
-                        x.append(y)
-                    else:
-                        break
+        for _ in range(n):
+            y = self.pop(idex=idx)
+            if not isnone(y):
+                x.append(y)
+            else:
+                break
         if len(x) == n:
             return tuple(x)
         return (None, None)
@@ -589,7 +606,7 @@ class Stack(object):
 
         elif allof(isnum(x), isstr(y)):
             try:
-                cr_y = coer(y, "num")
+                coer(y, "num")
             except ValueError:
                 self.push(bool2int(str(x) == str(y)))
             else:
@@ -597,7 +614,7 @@ class Stack(object):
 
         elif allof(isstr(x), isnum(y)):
             try:
-                cr_x = coer(x, "num")
+                coer(x, "num")
             except ValueError:
                 sum_x = strsum(x)
                 self.push(bool2int(sum_x == y))
@@ -646,7 +663,7 @@ class Stack(object):
         rotates only top three items up"""
         x = self.copyn(3)
         x.insert(0, x.pop())
-        for i in x:
+        for _ in x:
             self.pop()
         for i in x:
             self.push(i)
@@ -667,7 +684,7 @@ class Stack(object):
         ) -> None:
         """( z y x -- x z y )
         roll the stack up by n"""
-        for i in range(n):
+        for _ in range(n):
             self.roll()
 
     def uroll(self: object) -> None:
@@ -681,7 +698,7 @@ class Stack(object):
         ) -> None:
         """( z y x -- y x z )
         roll the stack down by n"""
-        for i in range(n):
+        for _ in range(n):
             self.uroll()
 
     def drop(self: object) -> None:
@@ -762,7 +779,6 @@ class Stack(object):
             return
         toread = chr(x)
         buf = []
-        seen_char = False
         nxt_end = False
         while True:
             char = sys.stdin.read(1)
@@ -824,7 +840,7 @@ class CaptainHook(object):
             if isnone(othercls):
                 super().__setattr__(n, value)
                 return
-            elif othercls.tabl.get(value) == True:
+            elif othercls.tabl.get(value):
                 raise BadInternalCallException(
                     "the parser tried to jump inside a string"
                 )
@@ -928,7 +944,7 @@ class Mouse(object):
             "None": (self._stack.push, (self._retstk.pop)),
         } # type: Dict[str, Tuple[object, object]]
 
-        self.funcdict["#"] = (self._print_bound_ops, ()) # uses EOT for viewing the function dictionary
+        self.funcdict["#"] = (self._print_bound_ops, ())
 
     def _print_bound_ops(self: object) -> None:
         """ ( -- )
@@ -947,27 +963,28 @@ class Mouse(object):
 
     def _get_tokens(
             self: object
-        ) -> typing.List[str]:
+        ) -> typing.List[typing.Any]:
         """to make sure we don't accidentally write to the program while it's running.
-        as with the Stack(), it's still possible, and a self-modifying implementation is still possible
-        but this feels safer"""
+        as with the Stack(), it's still possible, as is a self-modifying
+        implementation but this feels safer"""
         return self.__tokens__
 
     def execute(
-            self: object,
-            proglist: typing.Union[str, typing.List[str]]
+            self:     object,
+            proglist: typing.Union[str, int]
         ) -> None:
         """parse and JIT run mouse code"""
 
         try:
             iter(proglist)
         except TypeError as error:
-            raise BadInternalCallException("expected an iterable/indexable object not " + repr(type(proglist)).split("'")[1]) from error
+            raise BadInternalCallException(
+                "expected an iterable/indexable object not "
+                + repr(type(proglist)).split("'")[1]
+            ) from error
 
-        self.__tokens__ = [str(i) for i in proglist]
-
-        self.toklist = self._get_tokens()
-
+        self.__tokens__  = [str(i) for i in proglist]
+        self.toklist     = self._get_tokens()
         self.__progstr__ = "".join(self.toklist)
 
         self.idx       = CaptainHook()
@@ -989,8 +1006,8 @@ class Mouse(object):
 
             except IndexError:
                 if (
-                    len(self._stack.inspect()) > 0
-                    and _FROMFILE == True
+                    len(self._stack.inspect())
+                    and _FROMFILE
                 ):
                     self._stack.put()
                 break
@@ -1016,7 +1033,7 @@ class Mouse(object):
                 )
                 self._stack.log(nodeftupl, 2)
 
-            if _U_READ_AHEAD == False:
+            if not _U_READ_AHEAD:
                 self.idx.v = (self.idx.v + 1, self.lit_table)
 
     # end def Mouse.execute
@@ -1113,7 +1130,7 @@ class Mouse(object):
             match: str,
         ) -> int:
         """walk the program, trying to find a matching brace"""
-        depth = 1
+        depth = 0
         prog  = self.toklist[self.idx.v:]
         if len(match) != 1 or match not in "([{}])":
             raise BadInternalCallException("junk paren type")
@@ -1128,23 +1145,28 @@ class Mouse(object):
             group = ["{", "}"]
 
         for i, e in enumerate(prog):
-            if e == group[0]:   # found a homoiconic opener
+            if e == group[0]:    # found a homogenous opener
                 depth += 1
-            elif e == group[1]: # found a homoiconic closer
+
+            elif e == group[1]:  # found a homogenous closer
                 depth -= 1
 
             if depth == 0:
                 return self.idx.v + i
 
-        self._stack.log("found EOF before matching brace: at char " + str(self.char), 2)
+        self._stack.log(
+            "found EOF before matching brace: at char "
+            + str(self.char), 2
+        )
 
     def _last_brace(
             self:  object,
             match: str
         ) -> int:
         """walk the program in reverse, trying to find a matching brace"""
-        depth = 1
-        prog  = self.toklist[self.idx.v:][::-1]
+
+        depth = 0
+        prog  = reversed(self.toklist[:self.idx.v])
         if len(match) != 1 or match not in "([{}])":
             raise BadInternalCallException("junk paren type")
 
@@ -1158,13 +1180,15 @@ class Mouse(object):
             group = ["{", "}"]
 
         for i, e in enumerate(prog):
-            if e == group[0]:   # found a homoiconic opener
+            if e == group[0]:    # found a homogenous opener
                 depth -= 1
-            elif e == group[1]: # found a homoiconic closer
+            elif e == group[1]:  # found a homogenous closer
                 depth += 1
 
             if depth == 0:
-                return self.idx.v + i
+                return self.idx.v - i
+
+        raise BadInternalCallException("junk paren code")
 
     def _string_as_mouse(self: object) -> None:
         """ ( x -- )
@@ -1251,22 +1275,16 @@ class Mouse(object):
     def _simple_while(self: object) -> None:
         """WHILE 1
         jumps the pointer back to the opener while the top of the stack is true"""
-        pass
+        print("reached an open brace")
 
     def _simple_elihw(self: object) -> None:
         """ELIHW
         ends a simple while/for loop (nop/perma-placeholder)"""
-        cond = self._stack.pop()
-        if isnone(cond):
+        nb = self._last_brace(")")
+        if isnone(nb):
             return
-        if bool(cond):
-            nb = self._last_brace(")")
-            if isnone(nb):
-                return
-            self._stack.push(nb)
-            self._goto()
-        else:
-            self.idx.v = (self.idx.v + 1, self.lit_table)
+        self._stack.push(nb)
+        self._goto()
 
     def _goto(self: object) -> None:
         """( x -- )
