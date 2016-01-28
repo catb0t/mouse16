@@ -797,7 +797,7 @@ class Stack(object):
     def reveal(self: object) -> None:
         """prints the entire stack, pleasantly"""
         stack = self.inspect()
-        peek = repr(stack)[1:-1]
+        peek = repr(stack)
         sys.stdout.write("<{}> {}".format(len(stack), peek[1:len(peek) - 1]))
 
 class CaptainHook(object):
