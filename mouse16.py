@@ -773,25 +773,28 @@ class Stack(object):
         x = input()
         self.push(x)
 
-    def getuntil(self: object) -> None:
-        """read stdandard input until the char on the stack is read"""
+    def get_exact(self):
+        """( x -- y )
+        get exactly x bytes of stdin, and push them as a string"""
         x = self.pop()
         if isnone(x):
             return
-        toread = chr(x)
-        buf = []
-        nxt_end = False
-        while True:
-            char = sys.stdin.read(1)
-            if not char:
-                break
-            if char == toread and nxt_end:
-                buf.pop()
-                break
-            else:
-                nxt_end = (char == toread)
-                buf.append(char)
-        self.push("".join(buf))
+        if not isnum(x):
+            CatLogger.Crit("need a number of characters to get not " + repr(type(x)))
+            return
+        from input_constrain import thismany
+        self.push(thismany(x))
+
+    def get_until(self):
+        """( x -- y )
+        get stdin until the character with codepoint x is read, pushing to y"""
+        x = self.pop()
+        if isnum(x):
+            x = chr(x)
+        elif isstr(x):
+            x = x[0]
+        from input_constrain import until
+        self.push(until(x))
 
     # prints a "presentable" representation of the stack
 
