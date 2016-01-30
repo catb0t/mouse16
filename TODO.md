@@ -39,7 +39,7 @@ done stuff
 
 - [x] arbitrary mouse execution! just push a (string or number) literal, then use <code>&#96;</code> to run the string in the current interpreter!
  * a mouse self-interpreter is possible with just <code>?&#96;</code>
- * note that running mouse inside mouse causes the stack to recuse another level; this is why the recursion limit is tripled
+ * note that running mouse inside mouse causes the stack to recurse another level; this is why the recursion limit is tripled
 
 - [x] arbitrary python execution! push a string literal beginning with `!!PY!!` and the rest of it will be exec'd as python
   * this means it's possible to:

@@ -246,7 +246,8 @@ class ParseWarning(Warning):
 
 
 class RuntimeWarning(Warning):
-    """warnings that things may not work properly due to certain circumstances
+    """
+    warnings that things may not work properly due to certain circumstances
     """
     pass
 
