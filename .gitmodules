@@ -1,3 +1,6 @@
 [submodule "input_constrain"]
 	path = input_constrain
 	url = https://github.com/catb0t/input_constrain.git
+[submodule "docopt"]
+	path = docopt
+	url = https://github.com/docopt/docopt.git
