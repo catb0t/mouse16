@@ -4,3 +4,6 @@
 [submodule "docopt"]
 	path = docopt
 	url = https://github.com/docopt/docopt.git
+[submodule "mousetest"]
+	path = mousetest
+	url = https://github.com/catb0t/mousetest

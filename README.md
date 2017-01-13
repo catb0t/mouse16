@@ -128,60 +128,18 @@ Control structures, types, and arbitrary and special operators will be covered m
     : pow over swap 1 ?do over * loop nip ;
     ```
 
-##### stack primitives
-
-Next, the core stack operators, which are type-agnostic and reliable, and can be simply defined by their Forth-style stack effect.
-
-Note that while all of the following are implemented in the Python interpeter, not all are designated operators, but can be accessed through source-introspection `🐭`. the case-insensitive NAME of the function is used to refer to the function internally.
-
-* `$` - DUP - `( y x -- y x x )`
-
-    push a copy of the TOS
-
-  * to DROP (silently pop), use `{$}_.` `( x -- )`
+that's all for now :(
 
 
-* `%` - SWAP - `( y x -- x y )`
 
-    swap the top two items on the stack
+[stack overflow](http://stackoverflow.com) questions that helped shape this project:
+---
 
-  * to ROT (up) the top three items on the stack, use `{%}_.` `( z y x w -- z w y x )`
-
-   this pushes the SWAP function to the stack, then negates it (for SWAP, results in ROT)
-
-  * to UROT (down) the top three items on the stack, use `{%}_$..` `( z y x w -- z x w y )`
-
-   this pushes SWAP, then negates to get ROT, then duplicates ROT and pushes it twice.
-
-* `@` - ROLL - `( z y x w -- z w y x )`
-
-    rolls the stack upward
-
-  * to UROLL, or roll downward, use `{@}_.`
-
-   this pushes the ROLL function to the stack, then negates it (for ROLL pushes UROLL), then executes it
-
-* `^` - OVER - `( z y x -- z y x y )`
-
-    DUP second-to-top item to TOS
-
-  * to NIP (drop second-to-top), use `{^}_.` `( y x -- x )`
-
-    functions as the others.
-
-  * to TUCK (dup TOS behind second-to-top) `( y x -- x y x )` use `{ "tuck" 🐭 . } \ : ` where `\` is the new operator.
-
-##### other primitives
-
-
-* <code>&#96;</code> (backtick) will pop from something from the stack and execute it as Mouse in the current environment.
- * for inserting arbitrary python for the interpreter to run, use the `⌨` extension operator.
-
-
-* `!` dereferences the thing on the stack, i.e., prints its numeric address.
- * on the lowercase letter variables `a` - `z`, this returns that letter's zero-indexed position in the alphabet.
- * on the uppercase letter variables initialised to arrays of functions, this returns 2 to the power of the letter's zero-indexed position in the alphabet.
- * for other things, it will probably be the `id()` of the type of the item, or the item's
-
-* `:`, if a `{}` quotation and a valid identifier are on the stack, will assign that quotation to be pushed whenever that identifier is used.
- * if preceded by a bare numeric literal and valid identifier that identifier will push that number.
+* [Crafting impeccable unittests             ](http://stackoverflow.com/q/34701382)
+* [Readable, controllable iterator indicies  ](http://stackoverflow.com/q/34734137)
+* [Code style particulars                    ](http://stackoverflow.com/q/34746311)
+* [Overloading the assignment operator       ](http://stackoverflow.com/q/34757038)
+* [How to Pythonically log nonfatal errors   ](http://stackoverflow.com/q/26357367)
+* [A more Pythonic switch statement          ](stackoverflow.com/a/3828986/4532996)
+* [Indexing dictionaries by value            ](stackoverflow.com/a/11632952/4532996)
+* and many more, to which I didn't contribute.
